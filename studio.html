@@ -431,6 +431,9 @@ function pieceTitle(p){
    ================================================================== */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const has=v=>v!=null&&String(v).trim()!=='';
+/* name matching for glazes/clays: trim, collapse whitespace, ignore case */
+const normName=s=>String(s==null?'':s).trim().replace(/\s+/g,' ');
+const nameKey=s=>normName(s).toLowerCase();
 function toast(msg){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
   const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
@@ -1268,12 +1271,25 @@ async function matSave(){
   const scope=document.getElementById('modal');
   const v=readForm(scope);
   if(!has(v.name)){ toast('Give it a name'); return; }
+  v.name=normName(v.name);
   syncRecipe();
   const recipe=draft.recipe.filter(r=>has(r.material)||has(r.pct));
-  const id=has(v.id)?v.id:uid();
+  /* creating with an existing name merges into that record instead of duplicating */
+  let id=has(v.id)?v.id:null, merged=false;
+  if(!id){
+    const ex=S.materials.find(x=>nameKey(x.name)===nameKey(v.name));
+    if(ex){ id=ex.id; merged=true; }
+  }
+  if(!id) id=uid();
   const prev=matById(id)||{};
-  await dbPut('materials',Object.assign({},prev,v,{id,recipe,imageId:draft.imageId||prev.imageId||null,updated:Date.now()}));
-  draft=null; closeSheet(); await loadAll(); render(); toast('Saved');
+  const rec=Object.assign({},prev);
+  if(merged){ for(const k in v){ if(typeof v[k]==='boolean'||has(v[k])) rec[k]=v[k]; } }
+  else Object.assign(rec,v);
+  Object.assign(rec,{id,recipe:(merged&&!recipe.length)?(prev.recipe||[]):recipe,
+    imageId:draft.imageId||prev.imageId||null,updated:Date.now()});
+  await dbPut('materials',rec);
+  draft=null; closeSheet(); await loadAll(); render();
+  toast(merged?'Merged into existing '+v.name:'Saved');
 }
 
 /* ---------- clay form ---------- */
@@ -1296,10 +1312,21 @@ function clayForm(c){
 async function claySave(){
   const v=readForm(document.getElementById('modal'));
   if(!has(v.name)){ toast('Give it a name'); return; }
-  const id=has(v.id)?v.id:uid();
+  v.name=normName(v.name);
+  let id=has(v.id)?v.id:null, merged=false;
+  if(!id){
+    const ex=S.clays.find(x=>nameKey(x.name)===nameKey(v.name));
+    if(ex){ id=ex.id; merged=true; }
+  }
+  if(!id) id=uid();
   const prev=clayById(id)||{};
-  await dbPut('clays',Object.assign({},prev,v,{id,imageId:draft.imageId||prev.imageId||null,updated:Date.now()}));
-  draft=null; closeSheet(); await loadAll(); render(); toast('Saved');
+  const rec=Object.assign({},prev);
+  if(merged){ for(const k in v){ if(has(v[k])) rec[k]=v[k]; } }
+  else Object.assign(rec,v);
+  Object.assign(rec,{id,imageId:draft.imageId||prev.imageId||null,updated:Date.now()});
+  await dbPut('clays',rec);
+  draft=null; closeSheet(); await loadAll(); render();
+  toast(merged?'Merged into existing '+v.name:'Saved');
 }
 
 /* ---------- piece form ---------- */
@@ -1323,9 +1350,9 @@ async function pieceSave(){
   const prev=pieceById(id)||{};
   /* clay is entered by name — link an existing body (case-insensitive) or create one */
   let clayId='', createdClay=null;
-  const cn=String(v.clayName||'').trim();
+  const cn=normName(v.clayName);
   if(cn){
-    let c=S.clays.find(x=>(x.name||'').trim().toLowerCase()===cn.toLowerCase());
+    let c=S.clays.find(x=>nameKey(x.name)===nameKey(cn));
     if(!c){ c={id:uid(),name:cn,updated:Date.now()}; createdClay=cn; await dbPut('clays',c); }
     clayId=c.id;
   }
@@ -1436,14 +1463,14 @@ async function pinSave(){
   const createdHere={}; const createdNames=[];
   const layers=[];
   for(const l of entries){
-    const nm=l.name.trim(), key=nm.toLowerCase();
-    let m=S.materials.find(x=>(x.name||'').trim().toLowerCase()===key)||createdHere[key];
+    const nm=normName(l.name), key=nameKey(nm);
+    let m=S.materials.find(x=>nameKey(x.name)===key)||createdHere[key];
     if(!m){
       m={id:uid(),name:nm,type:'Glaze',updated:Date.now()};
       createdHere[key]=m; createdNames.push(nm);
       await dbPut('materials',m);
     }
-    layers.push({materialId:m.id,coats:l.coats,method:l.method});
+    layers.push({materialId:m.id,coats:has(l.coats)?l.coats:'1',method:l.method});
   }
   const pins=(p.pins||[]).slice();
   const rec={id:draft.pinId,photoId:draft.photoId,x:draft.x,y:draft.y,layers,note:v.note||''};

@@ -705,6 +705,20 @@ function renderLightbox(){
       }
     },120);
   });
+  /* size the crop window in JS — the CSS min()/env() chain silently fails on iOS,
+     and measuring also lets the crop shrink when the keyboard opens */
+  const crop=d.querySelector('.crop'), lbtopEl=d.querySelector('.lbtop'), lbbotEl=d.querySelector('.lbbot');
+  const fit=()=>{
+    if(!document.body.contains(crop)) return;
+    const room=window.innerHeight-lbtopEl.offsetHeight-lbbotEl.offsetHeight-12;
+    crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.5,room))+'px';
+  };
+  if(window.__lbFit) window.removeEventListener('resize',window.__lbFit);
+  window.__lbFit=fit;
+  window.addEventListener('resize',fit);
+  fit(); setTimeout(fit,60);
+  d.addEventListener('focusin',()=>setTimeout(fit,60));
+  d.addEventListener('focusout',()=>setTimeout(fit,180));
   hydrate(d);
   attachLightboxGestures(d);
 }

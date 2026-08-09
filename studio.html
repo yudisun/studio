@@ -94,7 +94,7 @@ a{color:var(--accent)}
 
 /* ---------- piece cards ---------- */
 .pcard{display:flex;gap:0;align-items:stretch}
-.pcard .ph{width:104px;flex:none;background:var(--bg3) center/cover no-repeat}
+.pcard .ph{width:128px;min-height:112px;flex:none;background:var(--bg3) center/cover no-repeat}
 .pcard .bd{flex:1;padding:13px;min-width:0}
 .pcard h3{margin:0 0 3px;font-size:16.5px;font-weight:600}
 .pcard .mt{font-size:13px;color:var(--fg3)}
@@ -187,13 +187,11 @@ input[type=color].in{padding:5px;height:var(--tap)}
 const MAT_TYPES = ['Glaze','Underglaze','Slip','Oxide'];
 const METHODS   = ['dip','brush','pour','spray','sponge','wax'];
 const CLAY_TYPES= ['Stoneware','Porcelain','Earthenware','Other'];
-const STAGES    = ['Idea','Thrown','Trimmed','Drying','Bisque','Glazed','Fired'];
-const STAGE_COLOR = {
-  Idea:'#8e8578', Thrown:'#c98f5e', Trimmed:'#c9a95e', Drying:'#a8b06a',
-  Bisque:'#7fae86', Glazed:'#6a9fb5', Fired:'#a97fc0'
-};
-const ATMOS = ['Oxidation','Reduction','Neutral','Soda','Wood','Raku'];
-const DEF_FIRING = { cone:'6', atmos:'Oxidation', kiln:'Electric', schedule:'' };
+const STAGES    = ['Thrown','Bisque','Glazed','Fired'];
+const STAGE_COLOR = { Thrown:'#c98f5e', Bisque:'#7fae86', Glazed:'#6a9fb5', Fired:'#a97fc0' };
+/* stages that existed before the ladder shrank — map old data to the nearest current stage */
+const STAGE_ALIAS = { Idea:'Thrown', Trimmed:'Thrown', Drying:'Thrown' };
+const stageOf = s => STAGE_ALIAS[s] || s || 'Thrown';
 
 /* ==================================================================
    storage
@@ -299,7 +297,7 @@ const S={
   q:'', matType:'All', inspoTag:'All',
   lightbox:null,        // {ids:[], i:0, ctx:'inspo'}
   photoIdx:0, pinMode:false, activePin:null, showPins:true,
-  advOpen:false, recipeOpen:false
+  recipeOpen:false
 };
 
 async function loadAll(){
@@ -312,6 +310,12 @@ const byName=(a,b)=>(a.name||'').localeCompare(b.name||'');
 const matById=id=>S.materials.find(m=>m.id===id);
 const clayById=id=>S.clays.find(c=>c.id===id);
 const pieceById=id=>S.pieces.find(p=>p.id===id);
+/* names are optional — fall back to the clay body, then a placeholder */
+function pieceTitle(p){
+  if(has(p.name)) return p.name;
+  const c=clayById(p.clayId);
+  return c?c.name:'Untitled';
+}
 
 /* ==================================================================
    small helpers
@@ -330,13 +334,6 @@ function opts(list,sel){
     return '<option value="'+esc(v)+'"'+(String(v)===String(sel)?' selected':'')+'>'+esc(l)+'</option>';
   }).join('');
 }
-function fmtDate(d){
-  if(!has(d)) return '';
-  const dt=new Date(d+(String(d).length===10?'T12:00:00':''));
-  if(isNaN(dt)) return String(d);
-  return dt.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
-}
-
 /* ==================================================================
    render
    ================================================================== */
@@ -563,7 +560,7 @@ function viewMaterial(m){
     h+='<div class="card">'+used.map((p,i)=>
       '<button class="row" data-a="open-piece" data-id="'+p.id+'"'+(i<used.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
       '<span class="swatch"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
-      '<span class="grow"><span class="nm">'+esc(p.name)+'</span><span class="mt">'+esc(p.stage||'')+'</span></span>'+
+      '<span class="grow"><span class="nm">'+esc(pieceTitle(p))+'</span><span class="mt">'+esc(stageOf(p.stage))+'</span></span>'+
       '<span class="chev">&rsaquo;</span></button>').join('')+'</div>';
   }else{
     h+='<div class="card"><div style="padding:15px;color:var(--fg3);font-size:14px">No pieces marked with this yet.</div></div>';
@@ -588,7 +585,7 @@ function viewClay(c){
   if(used.length) h+='<div class="card">'+used.map((p,i)=>
       '<button class="row" data-a="open-piece" data-id="'+p.id+'"'+(i<used.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
       '<span class="swatch"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
-      '<span class="grow"><span class="nm">'+esc(p.name)+'</span><span class="mt">'+esc(p.stage||'')+'</span></span>'+
+      '<span class="grow"><span class="nm">'+esc(pieceTitle(p))+'</span><span class="mt">'+esc(stageOf(p.stage))+'</span></span>'+
       '<span class="chev">&rsaquo;</span></button>').join('')+'</div>';
   h+='<div style="height:14px"></div><button class="btn dgr" data-a="clay-del" data-id="'+c.id+'">Delete clay body</button></div>';
   return h;
@@ -602,7 +599,7 @@ function viewPieces(){
   const list=S.pieces.filter(p=>{
     if(!q) return true;
     const clay=clayById(p.clayId);
-    return [p.name,p.form,p.stage,p.notes,clay&&clay.name].some(v=>(v||'').toLowerCase().includes(q));
+    return [p.name,stageOf(p.stage),p.notes,clay&&clay.name].some(v=>(v||'').toLowerCase().includes(q));
   });
   let h='<div class="hdr"><div style="flex:1"><h1>Pieces</h1>'+
     '<div class="sub">'+S.pieces.length+' logged</div></div>'+
@@ -610,7 +607,7 @@ function viewPieces(){
     '<div class="wrap"><input class="search" data-a="q" placeholder="Search pieces" value="'+esc(S.q)+'">';
   if(!list.length){
     h+='<div class="empty"><b>'+(S.pieces.length?'No matches':'No pieces yet')+'</b>'+
-      (S.pieces.length?'Try a different search.':'Log a piece, add a photo, then tap the photo to mark which glazes went where.')+'</div>';
+      (S.pieces.length?'Try a different search.':'Tap + and pick a photo of the piece. Then tap the photo to mark which glazes went where.')+'</div>';
   }else{
     h+=list.map(p=>pieceCard(p)).join('');
   }
@@ -619,15 +616,15 @@ function viewPieces(){
 }
 function pieceCard(p){
   const clay=clayById(p.clayId);
-  const meta=[clay&&clay.name,p.form].filter(has).join(' &middot; ');
-  const col=STAGE_COLOR[p.stage]||'#8e8578';
+  const stage=stageOf(p.stage);
+  const col=STAGE_COLOR[stage]||'#8e8578';
   const npins=(p.pins||[]).length;
   return '<button class="card pcard" data-a="open-piece" data-id="'+p.id+'" style="display:flex;width:100%;text-align:left">'+
     '<span class="ph"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
-    '<span class="bd"><h3>'+esc(p.name)+'</h3>'+
-    (meta?'<span class="mt" style="display:block">'+meta+'</span>':'')+
+    '<span class="bd"><h3>'+esc(pieceTitle(p))+'</h3>'+
+    (has(p.name)&&clay?'<span class="mt" style="display:block">'+esc(clay.name)+'</span>':'')+
     (npins?'<span class="mt" style="display:block;margin-top:2px">'+npins+' glaze mark'+(npins===1?'':'s')+'</span>':'')+
-    '<span class="stage" style="color:'+col+';background:'+col+'22"><i></i>'+esc(p.stage||'Idea')+'</span>'+
+    '<span class="stage" style="color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span>'+
     '</span></button>';
 }
 function viewPiece(p){
@@ -637,11 +634,12 @@ function viewPiece(p){
   const photoId=photos[idx];
   const pins=(p.pins||[]).filter(x=>x.photoId===photoId);
   const clay=clayById(p.clayId);
-  const col=STAGE_COLOR[p.stage]||'#8e8578';
+  const stage=stageOf(p.stage);
+  const col=STAGE_COLOR[stage]||'#8e8578';
 
   let h='<button class="backbtn" data-a="back">&lsaquo; Pieces</button>'+
-    '<div class="hdr"><div style="flex:1"><h1>'+esc(p.name)+'</h1>'+
-    '<div class="sub"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(p.stage||'Idea')+'</span></div></div>'+
+    '<div class="hdr"><div style="flex:1"><h1>'+esc(pieceTitle(p))+'</h1>'+
+    '<div class="sub"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span></div></div>'+
     '<button class="iconbtn" data-a="piece-edit" data-id="'+p.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
 
   if(photoId){
@@ -683,14 +681,8 @@ function viewPiece(p){
     }).join('')+'</div>';
   }
 
-  const f=p.firing||{};
   const rows=[
-    ['Clay body',clay?clay.name:''],
-    ['Form',p.form],
-    ['Started',fmtDate(p.dateStarted)],
-    ['Firing',[has(f.cone)?'cone '+f.cone:null,f.atmos,f.kiln].filter(has).join(' · ')],
-    ['Schedule',f.schedule],
-    ['Fired on',fmtDate(f.date)]
+    ['Clay body',clay?clay.name:'']
   ].filter(r=>has(r[1]));
   if(rows.length) h+='<div class="sect">Details</div><div class="card"><dl class="infogrid">'+
     rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')+'</dl></div>';
@@ -840,9 +832,8 @@ async function seed(){
   const p2Photo=await storeGeneratedImage(potDraw('#e9e2d5','#8f5a3c','mug'),1000,1000);
   const p3Photo=await storeGeneratedImage(potDraw('#e4dccd','#4a3226','vase'),1000,1000);
 
-  await dbPut('pieces',{id:uid(),name:'Wide serving bowl',clayId:claySt.id,form:'Bowl, 11in',
-    stage:'Fired',dateStarted:'2026-06-14',photos:[p1Photo,p1Photo2],
-    firing:{cone:'6',atmos:'Oxidation',kiln:'Electric',schedule:'Slow cool from 1900F',date:'2026-07-02'},
+  await dbPut('pieces',{id:uid(),name:'Wide serving bowl',clayId:claySt.id,
+    stage:'Fired',photos:[p1Photo,p1Photo2],
     notes:'The one that finally came out right. Trim foot thinner next time.',
     pins:[
       {id:uid(),photoId:p1Photo,x:.5,y:.42,note:'Interior pool',
@@ -851,14 +842,14 @@ async function seed(){
       {id:uid(),photoId:p1Photo,x:.27,y:.62,note:'Rim break',
        layers:[{materialId:matIds['Celadon Blue'],coats:'2',method:'dip'}]}
     ],updated:now});
-  await dbPut('pieces',{id:uid(),name:'Morning mug no.4',clayId:claySt.id,form:'Mug, 12oz',
-    stage:'Glazed',dateStarted:'2026-07-20',photos:[p2Photo],
-    firing:Object.assign({},DEF_FIRING),notes:'Handle pulled a touch short. Still comfortable.',
+  await dbPut('pieces',{id:uid(),name:'Morning mug no.4',clayId:claySt.id,
+    stage:'Glazed',photos:[p2Photo],
+    notes:'Handle pulled a touch short. Still comfortable.',
     pins:[{id:uid(),photoId:p2Photo,x:.44,y:.48,note:'Body, brushed on',
       layers:[{materialId:matIds['Iron Red'],coats:'3',method:'brush'}]}],updated:now-1000});
-  await dbPut('pieces',{id:uid(),name:'Tall bud vase',clayId:clayPo.id,form:'Vase, 8in',
-    stage:'Bisque',dateStarted:'2026-08-02',photos:[p3Photo],
-    firing:Object.assign({},DEF_FIRING),notes:'Want tenmoku over the bottom third, celadon above.',
+  await dbPut('pieces',{id:uid(),name:'Tall bud vase',clayId:clayPo.id,
+    stage:'Bisque',photos:[p3Photo],
+    notes:'Want tenmoku over the bottom third, celadon above.',
     pins:[],updated:now-2000});
 
   const inspoSpecs=[['#c9b79c','#8aa5a8','bowl'],['#b9a48b','#6d4a34','mug'],['#d3c3ab','#3b4a52','vase'],
@@ -988,37 +979,25 @@ async function claySave(){
 /* ---------- piece form ---------- */
 function pieceForm(p){
   const isNew=!p;
-  p=p||{stage:'Thrown',firing:Object.assign({},DEF_FIRING),dateStarted:new Date().toISOString().slice(0,10)};
-  const f=p.firing||{};
+  p=p||{stage:'Thrown'};
   draft={};
   const clayOpts=[{v:'',l:'—'}].concat(S.clays.map(c=>({v:c.id,l:c.name})));
   const b='<input type="hidden" data-f="id" value="'+esc(p.id||'')+'">'+
-    fld('Name',txt('name',p.name,'Morning mug no.4'))+
-    '<div class="two">'+fld('Stage',sel('stage',STAGES,p.stage))+fld('Form',txt('form',p.form,'Mug, 12oz'))+'</div>'+
+    fld('Name (optional)',txt('name',p.name,'Morning mug no.4'))+
+    fld('Stage',sel('stage',STAGES,stageOf(p.stage)))+
     fld('Clay body',S.clays.length?sel('clayId',clayOpts,p.clayId||''):
       '<button class="in" data-a="clay-new" style="text-align:left;color:var(--fg3)">No clay bodies yet — add one</button>')+
-    fld('Started','<input class="in" type="date" data-f="dateStarted" value="'+esc(p.dateStarted||'')+'">')+
-    fld('Notes',area('notes',p.notes,'What you were going for. What went sideways.'))+
-    '<button class="disc" data-a="adv-toggle">'+
-      '<span style="font-size:12px">'+(S.advOpen?'&#9662;':'&#9656;')+'</span> Firing'+
-      '<span style="color:var(--fg3);font-weight:400;margin-left:auto">cone '+esc(f.cone||'6')+' &middot; '+esc(f.atmos||'Oxidation')+'</span></button>'+
-    '<div id="advbox"'+(S.advOpen?'':' hidden')+'>'+
-      '<div class="two">'+fld('Cone',txt('f_cone',f.cone||'6'))+fld('Atmosphere',sel('f_atmos',ATMOS,f.atmos||'Oxidation'))+'</div>'+
-      '<div class="two">'+fld('Kiln',txt('f_kiln',f.kiln||'Electric'))+
-        fld('Fired on','<input class="in" type="date" data-f="f_date" value="'+esc(f.date||'')+'">')+'</div>'+
-      fld('Schedule notes',area('f_schedule',f.schedule,'Slow cool from 1900F'))+
-    '</div>';
+    fld('Notes (optional)',area('notes',p.notes,'What you were going for. What went sideways.'));
   sheet(isNew?'New piece':'Edit piece',b,'piece-save');
 }
 async function pieceSave(){
   const v=readForm(document.getElementById('modal'));
-  if(!has(v.name)){ toast('Give it a name'); return; }
   const id=has(v.id)?v.id:uid();
   const prev=pieceById(id)||{};
+  /* legacy fields on prev (form, dateStarted, firing) ride along untouched */
   const rec=Object.assign({},prev,{
-    id,name:v.name,stage:v.stage,form:v.form,clayId:v.clayId!==undefined?v.clayId:(prev.clayId||''),
-    dateStarted:v.dateStarted,notes:v.notes,
-    firing:{cone:v.f_cone||'6',atmos:v.f_atmos||'Oxidation',kiln:v.f_kiln||'',schedule:v.f_schedule||'',date:v.f_date||''},
+    id,name:v.name||'',stage:v.stage,clayId:v.clayId!==undefined?v.clayId:(prev.clayId||''),
+    notes:v.notes,
     photos:prev.photos||[], pins:prev.pins||[], updated:Date.now()
   });
   await dbPut('pieces',rec);
@@ -1204,20 +1183,22 @@ document.addEventListener('click',async ev=>{
       await dbDel('clays',id); await loadAll(); back(); toast('Deleted'); break;
 
     /* pieces */
-    case 'piece-new': closeSheet(); pieceForm(null); break;
+    case 'piece-new': {
+      /* photo-first: the piece exists once the photo lands; everything else is optional */
+      closeSheet();
+      const ids=await pickImages(true);
+      if(!ids.length) break;
+      const pid=uid();
+      await dbPut('pieces',{id:pid,name:'',clayId:'',stage:'Thrown',notes:'',photos:ids,pins:[],updated:Date.now()});
+      await loadAll(); open('piece',pid); toast('Piece added');
+      break;
+    }
     case 'open-piece': open('piece',id); break;
     case 'piece-edit': pieceForm(pieceById(id)); break;
     case 'piece-save': await pieceSave(); break;
     case 'piece-del':
       if(!confirm('Delete this piece and its marks?')) break;
       await dbDel('pieces',id); await loadAll(); back(); toast('Deleted'); break;
-    case 'adv-toggle': {
-      S.advOpen=!S.advOpen;
-      const box=document.getElementById('advbox');
-      box.hidden=!S.advOpen;
-      el.querySelector('span').innerHTML=S.advOpen?'&#9662;':'&#9656;';
-      break;
-    }
     case 'photo-sel': S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
     case 'photo-add': {
       const ids=await pickImages(true);

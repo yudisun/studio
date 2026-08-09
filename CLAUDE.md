@@ -19,7 +19,9 @@ Everything lives in `studio.html`. One file, no build step, no dependencies.
 
 **Glazes support commercial fields AND recipes.** Yudi uses both. Brand/code fields are up front; the recipe section is collapsed by default and only shows on the detail view if it's filled in. The recipe total is displayed but **not enforced** to 100 — real recipes get scaled and tweaked.
 
-**Cone 6 electric oxidation is pre-filled on every piece.** That's Yudi's actual setup, so logging a firing should normally be zero taps. Atmosphere, kiln, and schedule notes live behind a "Firing" disclosure for the rare non-standard firing. Don't surface these by default; don't remove them either.
+**No firing data — reversed 2026-08-09.** An earlier version pre-filled cone 6 electric oxidation on every piece behind a "Firing" disclosure. Yudi doesn't do their own firing, so all firing UI (fields, disclosure, defaults) was removed at their request. Do not restore it. The `firing` key may still appear on old piece records and in old backups; it rides along untouched and is ignored by the UI.
+
+**The photo IS the piece.** Pieces are created photo-first: tap + → photo picker → the piece exists. Name and notes are optional (`pieceTitle()` falls back to clay body, then "Untitled"); form, weight, and started-date fields were removed as noise — you can see the form in the photo. Piece metadata is just clay body + stage.
 
 **Application order is the point of the glaze pins.** Yudi paints on pieces, so a spot on a pot is often *N* materials stacked. The pin stores an ordered `layers` array and the UI labels it `first → last` explicitly, because application order is the single thing that's impossible to reconstruct from a finished pot weeks later. Any redesign of the pin sheet must keep order unambiguous.
 
@@ -32,9 +34,10 @@ materials  { id, name, type, cone, colorHex, imageId, brand, code,
              method, coats, foodSafe, notes, recipe:[{material,pct}], updated }
 clays      { id, name, type, supplier, coneRange, colorRaw, colorFired,
              colorFiredHex, imageId, notes, updated }
-pieces     { id, name, clayId, form, stage, dateStarted, notes,
-             photos:[imageId], pins:[Pin],
-             firing:{cone, atmos, kiln, schedule, date}, updated }
+pieces     { id, name, clayId, stage, notes,
+             photos:[imageId], pins:[Pin], updated }
+           (name/notes optional; legacy records may also carry
+            form, dateStarted, firing — kept but unused)
 Pin        { id, photoId, x, y, note, layers:[{materialId, coats, method}] }
 inspo      { id, imageId, tags:[string], note, added }
 images     { id, blob, w, h }
@@ -42,7 +45,7 @@ images     { id, blob, w, h }
 
 `Pin.x` / `Pin.y` are **normalized 0–1** against the displayed photo. This only works because the photo renders at `width:100%; height:auto`, so the element box equals the image box and no object-fit math is needed. If you change the photo layout to use `object-fit`, you must fix the coordinate math in the `stage-tap` handler.
 
-`STAGES` are `Idea → Thrown → Trimmed → Drying → Bisque → Glazed → Fired`, each with a color in `STAGE_COLOR`.
+`STAGES` are `Thrown → Bisque → Glazed → Fired`, each with a color in `STAGE_COLOR`. The ladder used to include Idea/Trimmed/Drying; `STAGE_ALIAS` maps those (from old data or backups) to `Thrown` — display via `stageOf()`, never raw `p.stage`.
 
 Images are resized to 1800px on the long edge at JPEG 0.82 on import. Storage adds up fast on a phone; don't raise this without a reason.
 
@@ -50,12 +53,7 @@ Images are resized to 1800px on the long edge at JPEG 0.82 on import. Storage ad
 
 ## State of the code
 
-Written in one pass. **Not yet verified with real renders** — a screenshot pass was started and interrupted. Assume there are rough edges. Priorities on pickup:
-
-1. Serve it and confirm all four tabs render without console errors.
-2. Walk the pin flow end to end: add piece → add photo → mark a glaze → multiple layers → save → tap pin → edit → delete.
-3. Confirm the search input doesn't lose focus or cursor position while typing (there's a re-render hack in the `input` handler that's the likely suspect).
-4. Confirm the material and clay photo pickers don't drop unsaved form fields when re-rendering the sheet after an image is chosen. This is the sketchiest code in the file.
+Verified in Chrome at iPhone size on 2026-08-09 (see git history): all four tabs render without console errors, the pin flow works end to end (photo-first piece → two-layer mark → save → reopen → edit → delete), the search input keeps focus and mid-string cursor position through re-renders, and the material/clay photo pickers preserve unsaved form fields (including checkbox and recipe rows). Not yet verified on a real iPhone — Safari keyboard behavior around the search re-render is the main open question.
 
 The Backup tab has a **Load sample data** button that generates fake glazes, clay bodies, pieces with pins, and inspo images using canvas-drawn placeholder art. Use it for testing — no photo picking required.
 

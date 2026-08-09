@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Studio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Studio">
+<meta name="theme-color" content="#16130f">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%2316130f'/%3E%3Cpath d='M56 120c0-30 8-52 34-52s34 22 34 52z' fill='%23d9a06a'/%3E%3Cellipse cx='90' cy='120' rx='34' ry='8' fill='%23a8754a'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#16130f; --bg2:#1e1a15; --bg3:#272219; --line:#3a3227;
+  --fg:#f2ece2; --fg2:#b3a999; --fg3:#7d7364;
+  --accent:#d9a06a; --accent-fg:#2a1e12; --danger:#d97066;
+  --r:14px; --tap:48px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:var(--bg); color:var(--fg);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  overscroll-behavior-y:none;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+a{color:var(--accent)}
+
+/* ---------- layout ---------- */
+#app{padding:calc(var(--safe-t) + 8px) 0 calc(84px + var(--safe-b));min-height:100%}
+.hdr{display:flex;align-items:center;gap:10px;padding:6px 16px 10px}
+.hdr h1{font-size:26px;line-height:1.1;margin:0;font-weight:650;letter-spacing:-.02em;flex:1}
+.hdr .sub{font-size:13px;color:var(--fg3);margin-top:2px}
+.wrap{padding:0 16px}
+.iconbtn{width:40px;height:40px;border-radius:12px;background:var(--bg3);display:grid;place-items:center;font-size:19px;flex:none}
+.backbtn{display:flex;align-items:center;gap:4px;color:var(--accent);font-size:16px;padding:8px 16px 4px;min-height:40px}
+
+/* ---------- tabs ---------- */
+#tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
+  background:rgba(22,19,15,.93);backdrop-filter:blur(16px);
+  border-top:1px solid var(--line);padding-bottom:var(--safe-b)}
+#tabs button{flex:1;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--fg3);font-size:10.5px;letter-spacing:.02em;min-height:56px;justify-content:center}
+#tabs button .ic{font-size:21px;line-height:1}
+#tabs button[aria-current="true"]{color:var(--accent)}
+
+/* ---------- generic bits ---------- */
+.search{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;margin:0 0 12px;min-height:var(--tap)}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:8px 14px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);
+  font-size:13.5px;color:var(--fg2);white-space:nowrap;min-height:38px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.empty{text-align:center;color:var(--fg3);padding:56px 32px;font-size:14.5px;line-height:1.6}
+.empty b{display:block;color:var(--fg2);font-size:16px;margin-bottom:6px;font-weight:600}
+.fab{position:fixed;right:16px;bottom:calc(74px + var(--safe-b));z-index:35;
+  width:58px;height:58px;border-radius:50%;background:var(--accent);color:var(--accent-fg);
+  font-size:29px;display:grid;place-items:center;box-shadow:0 6px 22px rgba(0,0,0,.45)}
+.sect{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--fg3);
+  margin:22px 0 9px;font-weight:650}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:12px;padding:13px;min-height:var(--tap);width:100%;text-align:left}
+.row .grow{flex:1;min-width:0}
+.row .nm{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .mt{font-size:12.5px;color:var(--fg3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .chev{color:var(--fg3);font-size:18px}
+.swatch{width:38px;height:38px;border-radius:10px;flex:none;border:1px solid rgba(255,255,255,.14);
+  background-size:cover;background-position:center}
+.tag{display:inline-block;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:650;
+  padding:3px 7px;border-radius:6px;background:var(--bg3);color:var(--fg2);border:1px solid var(--line)}
+.btn{display:block;width:100%;background:var(--accent);color:var(--accent-fg);font-weight:650;
+  border-radius:12px;padding:14px;text-align:center;min-height:var(--tap)}
+.btn.sec{background:var(--bg3);color:var(--fg);border:1px solid var(--line)}
+.btn.dgr{background:none;color:var(--danger);border:1px solid var(--line)}
+.note{color:var(--fg2);font-size:14.5px;white-space:pre-wrap}
+
+/* ---------- inspo grid ---------- */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 3px}
+.grid .cell{position:relative;padding-top:100%;background:var(--bg3);overflow:hidden}
+.grid .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.lightbox{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
+.lightbox .lbtop{display:flex;align-items:center;gap:8px;padding:calc(var(--safe-t) + 10px) 12px 10px;
+  color:#fff;background:linear-gradient(#000c,#0000);position:relative;z-index:2}
+.lightbox .lbstage{flex:1;position:relative;overflow:hidden;display:grid;place-items:center;touch-action:none}
+.lightbox .lbstage img{max-width:100%;max-height:100%;transform-origin:center;transition:transform .18s}
+.lightbox .lbbot{padding:12px 16px calc(18px + var(--safe-b));color:#e8e2d8;background:linear-gradient(#0000,#000c)}
+.lbnav{position:absolute;top:0;bottom:0;width:34%;z-index:1}
+.lbnav.l{left:0}.lbnav.r{right:0}
+
+/* ---------- piece cards ---------- */
+.pcard{display:flex;gap:0;align-items:stretch}
+.pcard .ph{width:104px;flex:none;background:var(--bg3) center/cover no-repeat}
+.pcard .bd{flex:1;padding:13px;min-width:0}
+.pcard h3{margin:0 0 3px;font-size:16.5px;font-weight:600}
+.pcard .mt{font-size:13px;color:var(--fg3)}
+.stage{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:650;letter-spacing:.04em;
+  text-transform:uppercase;padding:4px 8px;border-radius:6px;margin-top:8px}
+.stage i{width:6px;height:6px;border-radius:50%;background:currentColor;font-style:normal}
+
+/* ---------- photo + pins ---------- */
+.photostage{position:relative;background:var(--bg3);border-radius:var(--r);overflow:hidden;
+  border:1px solid var(--line);line-height:0}
+.photostage img{width:100%;display:block}
+.photostage.pinning{cursor:crosshair;box-shadow:0 0 0 2px var(--accent)}
+.pin{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;
+  background:var(--accent);color:var(--accent-fg);font-size:13px;font-weight:750;
+  display:grid;place-items:center;box-shadow:0 0 0 2px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.5);line-height:1}
+.pin.on{outline:3px solid #fff}
+.strip{display:flex;gap:7px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.strip .th{width:62px;height:62px;flex:none;border-radius:10px;background:var(--bg3) center/cover no-repeat;
+  border:2px solid transparent}
+.strip .th[aria-current="true"]{border-color:var(--accent)}
+.strip .add{width:62px;height:62px;flex:none;border-radius:10px;border:1px dashed var(--line);
+  display:grid;place-items:center;font-size:22px;color:var(--fg3)}
+.hintbar{background:var(--accent);color:var(--accent-fg);font-size:13.5px;font-weight:600;
+  padding:10px 14px;border-radius:10px;margin:10px 0;display:flex;align-items:center;gap:10px}
+.hintbar button{margin-left:auto;font-weight:700;text-decoration:underline}
+.pinrow{display:flex;gap:11px;padding:12px 13px;align-items:flex-start;width:100%;text-align:left}
+.pinrow .num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-fg);
+  font-size:12px;font-weight:750;display:grid;place-items:center;flex:none;margin-top:1px}
+.layers{font-size:14.5px;line-height:1.5}
+.layers .sep{color:var(--fg3);padding:0 3px}
+.infogrid{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;font-size:14.5px;padding:13px}
+.infogrid dt{color:var(--fg3);font-size:13px}
+.infogrid dd{margin:0}
+
+/* ---------- modal / sheet ---------- */
+#modal:empty{display:none}
+#modal{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;justify-content:flex-end;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
+.sheet{background:var(--bg);border-radius:20px 20px 0 0;max-height:92vh;display:flex;flex-direction:column;
+  border-top:1px solid var(--line);animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(22px);opacity:.4}}
+.sheet .sh{display:flex;align-items:center;gap:12px;padding:15px 16px 11px;border-bottom:1px solid var(--line)}
+.sheet .sh h2{flex:1;margin:0;font-size:17.5px;font-weight:650}
+.sheet .sb{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px calc(18px + var(--safe-b))}
+.sheet .sh button{color:var(--accent);font-weight:650;font-size:16px;padding:6px 2px;min-height:36px}
+label.f{display:block;margin-bottom:13px}
+label.f>span{display:block;font-size:12.5px;color:var(--fg3);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
+.in{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:12px 13px;
+  min-height:var(--tap);-webkit-appearance:none;appearance:none}
+select.in{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237d7364' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+textarea.in{min-height:92px;resize:vertical}
+input[type=color].in{padding:5px;height:var(--tap)}
+.cb{display:flex;align-items:center;gap:11px;padding:12px 0;min-height:var(--tap)}
+.cb input{width:24px;height:24px;accent-color:var(--accent)}
+.two{display:flex;gap:10px}.two>*{flex:1;min-width:0}
+.disc{width:100%;display:flex;align-items:center;gap:8px;padding:13px 0;color:var(--accent);
+  font-weight:600;font-size:14.5px;border-top:1px solid var(--line);margin-top:6px;min-height:var(--tap)}
+.rrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.rrow .in{margin:0}
+.rrow .pc{width:78px;flex:none}
+.rrow .x{width:38px;height:38px;flex:none;color:var(--fg3);font-size:20px;display:grid;place-items:center}
+.total{display:flex;justify-content:space-between;font-size:13.5px;color:var(--fg2);
+  padding:9px 0 2px;border-top:1px solid var(--line);margin-top:4px}
+.total b{font-variant-numeric:tabular-nums}
+.total.off b{color:var(--danger)}
+.lyr{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:9px}
+.lyr .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.lyr .top .n{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);font-weight:700;flex:1}
+.orderhint{font-size:12.5px;color:var(--fg3);margin:-2px 0 10px}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(96px + var(--safe-b));z-index:90;
+  background:var(--fg);color:var(--bg);padding:13px 16px;border-radius:12px;font-size:14.5px;
+  font-weight:600;text-align:center;animation:up .2s}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="tabs"></nav>
+<div id="modal"></div>
+<input type="file" id="filepick" accept="image/*" multiple hidden>
+<input type="file" id="jsonpick" accept="application/json,.json" hidden>
+
+<script>
+"use strict";
+
+/* ==================================================================
+   constants
+   ================================================================== */
+const MAT_TYPES = ['Glaze','Underglaze','Slip','Oxide'];
+const METHODS   = ['dip','brush','pour','spray','sponge','wax'];
+const CLAY_TYPES= ['Stoneware','Porcelain','Earthenware','Other'];
+const STAGES    = ['Idea','Thrown','Trimmed','Drying','Bisque','Glazed','Fired'];
+const STAGE_COLOR = {
+  Idea:'#8e8578', Thrown:'#c98f5e', Trimmed:'#c9a95e', Drying:'#a8b06a',
+  Bisque:'#7fae86', Glazed:'#6a9fb5', Fired:'#a97fc0'
+};
+const ATMOS = ['Oxidation','Reduction','Neutral','Soda','Wood','Raku'];
+const DEF_FIRING = { cone:'6', atmos:'Oxidation', kiln:'Electric', schedule:'' };
+
+/* ==================================================================
+   storage
+   ================================================================== */
+const DB_NAME='studio', DB_VER=1;
+const STORES=['materials','clays','pieces','inspo','images'];
+let db=null;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NAME,DB_VER);
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:'id'}); });
+    };
+    r.onsuccess=e=>{ db=e.target.result; res(db); };
+    r.onerror=()=>rej(r.error);
+  });
+}
+function os(store,mode){ return db.transaction(store,mode).objectStore(store); }
+function idbReq(req){ return new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+const dbPut   = (s,v)=>idbReq(os(s,'readwrite').put(v)).then(()=>v);
+const dbGet   = (s,id)=>idbReq(os(s,'readonly').get(id));
+const dbAll   = s=>idbReq(os(s,'readonly').getAll());
+const dbDel   = (s,id)=>idbReq(os(s,'readwrite').delete(id));
+const dbClear = s=>idbReq(os(s,'readwrite').clear());
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+/* ---------- images ---------- */
+const urlCache=new Map();
+async function imgUrl(id){
+  if(!id) return null;
+  if(urlCache.has(id)) return urlCache.get(id);
+  const rec=await dbGet('images',id);
+  if(!rec||!rec.blob) return null;
+  const u=URL.createObjectURL(rec.blob);
+  urlCache.set(id,u);
+  return u;
+}
+async function hydrate(root){
+  const els=(root||document).querySelectorAll('[data-img]');
+  for(const el of els){
+    const u=await imgUrl(el.dataset.img);
+    if(!u) continue;
+    if(el.tagName==='IMG') el.src=u; else el.style.backgroundImage='url("'+u+'")';
+  }
+}
+const MAXPX=1800;
+async function storeImageFile(file){
+  let w,h,src;
+  try{
+    const bmp=await createImageBitmap(file);
+    w=bmp.width; h=bmp.height; src=bmp;
+  }catch(e){
+    src=await new Promise((res,rej)=>{ const i=new Image();
+      i.onload=()=>res(i); i.onerror=rej; i.src=URL.createObjectURL(file); });
+    w=src.naturalWidth; h=src.naturalHeight;
+  }
+  const k=Math.min(1,MAXPX/Math.max(w,h));
+  const cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
+  const c=document.createElement('canvas'); c.width=cw; c.height=ch;
+  c.getContext('2d').drawImage(src,0,0,cw,ch);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+  const id=uid();
+  await dbPut('images',{id,blob,w:cw,h:ch});
+  return id;
+}
+/* draws a synthetic image — used by "load sample data" */
+async function storeGeneratedImage(draw,w,h){
+  const c=document.createElement('canvas'); c.width=w||900; c.height=h||900;
+  draw(c.getContext('2d'),c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));
+  const id=uid(); await dbPut('images',{id,blob,w:c.width,h:c.height});
+  return id;
+}
+
+/* ---------- pick a file ---------- */
+let pickResolve=null;
+function pickImages(multiple){
+  const el=document.getElementById('filepick');
+  el.multiple=!!multiple; el.value='';
+  return new Promise(res=>{ pickResolve=res; el.click(); });
+}
+document.getElementById('filepick').addEventListener('change',async e=>{
+  const files=[...e.target.files];
+  const r=pickResolve; pickResolve=null;
+  if(!r) return;
+  if(!files.length){ r([]); return; }
+  toast('Adding '+files.length+' photo'+(files.length>1?'s':'')+'…');
+  const ids=[];
+  for(const f of files){ try{ ids.push(await storeImageFile(f)); }catch(err){ console.error(err); } }
+  r(ids);
+});
+
+/* ==================================================================
+   state
+   ================================================================== */
+const S={
+  tab:'inspo',
+  route:null,           // {name:'piece'|'material'|'clay', id}
+  materials:[], clays:[], pieces:[], inspo:[],
+  q:'', matType:'All', inspoTag:'All',
+  lightbox:null,        // {ids:[], i:0, ctx:'inspo'}
+  photoIdx:0, pinMode:false, activePin:null, showPins:true,
+  advOpen:false, recipeOpen:false
+};
+
+async function loadAll(){
+  const [m,c,p,i]=await Promise.all([dbAll('materials'),dbAll('clays'),dbAll('pieces'),dbAll('inspo')]);
+  S.materials=m.sort(byName); S.clays=c.sort(byName);
+  S.pieces=p.sort((a,b)=>(b.updated||0)-(a.updated||0));
+  S.inspo=i.sort((a,b)=>(b.added||0)-(a.added||0));
+}
+const byName=(a,b)=>(a.name||'').localeCompare(b.name||'');
+const matById=id=>S.materials.find(m=>m.id===id);
+const clayById=id=>S.clays.find(c=>c.id===id);
+const pieceById=id=>S.pieces.find(p=>p.id===id);
+
+/* ==================================================================
+   small helpers
+   ================================================================== */
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const has=v=>v!=null&&String(v).trim()!=='';
+function toast(msg){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),2200);
+}
+function opts(list,sel){
+  return list.map(o=>{
+    const v=typeof o==='string'?o:o.v, l=typeof o==='string'?o:o.l;
+    return '<option value="'+esc(v)+'"'+(String(v)===String(sel)?' selected':'')+'>'+esc(l)+'</option>';
+  }).join('');
+}
+function fmtDate(d){
+  if(!has(d)) return '';
+  const dt=new Date(d+(String(d).length===10?'T12:00:00':''));
+  if(isNaN(dt)) return String(d);
+  return dt.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+}
+
+/* ==================================================================
+   render
+   ================================================================== */
+const TABS=[
+  {k:'inspo',    ic:'&#9634;', label:'Inspo'},
+  {k:'materials',ic:'&#9673;', label:'Materials'},
+  {k:'pieces',   ic:'&#9711;', label:'Pieces'},
+  {k:'backup',   ic:'&#8635;', label:'Backup'}
+];
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>
+    '<button data-a="tab" data-k="'+t.k+'" aria-current="'+(S.tab===t.k&&!S.route)+'">'+
+    '<span class="ic">'+t.ic+'</span>'+t.label+'</button>').join('');
+}
+function render(){
+  const app=document.getElementById('app');
+  let html='';
+  if(S.route&&S.route.name==='piece')         html=viewPiece(pieceById(S.route.id));
+  else if(S.route&&S.route.name==='material') html=viewMaterial(matById(S.route.id));
+  else if(S.route&&S.route.name==='clay')     html=viewClay(clayById(S.route.id));
+  else if(S.tab==='inspo')     html=viewInspo();
+  else if(S.tab==='materials') html=viewMaterials();
+  else if(S.tab==='pieces')    html=viewPieces();
+  else                         html=viewBackup();
+  app.innerHTML=html;
+  renderTabs();
+  renderLightbox();
+  hydrate(app);
+  hydrate(document.getElementById('modal'));
+}
+function go(tab){ S.tab=tab; S.route=null; S.q=''; window.scrollTo(0,0); render(); }
+function open(name,id){
+  S.route={name,id}; S.photoIdx=0; S.pinMode=false; S.activePin=null; S.showPins=true;
+  window.scrollTo(0,0); render();
+}
+function back(){ S.route=null; render(); }
+
+/* ------------------------------------------------------------------
+   INSPO
+   ------------------------------------------------------------------ */
+function allTags(){
+  const s=new Set(); S.inspo.forEach(x=>(x.tags||[]).forEach(t=>s.add(t)));
+  return [...s].sort();
+}
+function viewInspo(){
+  const tags=allTags();
+  const list=S.inspo.filter(x=>S.inspoTag==='All'||(x.tags||[]).includes(S.inspoTag));
+  let h='<div class="hdr"><div style="flex:1"><h1>Inspo</h1>'+
+    '<div class="sub">'+S.inspo.length+' image'+(S.inspo.length===1?'':'s')+'</div></div>'+
+    '<button class="iconbtn" data-a="inspo-add" aria-label="Add images">+</button></div>';
+  if(tags.length){
+    h+='<div class="chips">'+['All'].concat(tags).map(t=>
+      '<button class="chip" data-a="inspo-tag" data-t="'+esc(t)+'" aria-pressed="'+(S.inspoTag===t)+'">'+
+      esc(t)+'</button>').join('')+'</div>';
+  }
+  if(!list.length){
+    h+='<div class="empty"><b>'+(S.inspo.length?'Nothing with that tag':'No images yet')+'</b>'+
+       (S.inspo.length?'Try another filter.':'Add photos of forms, surfaces, and glazes you want to chase.')+'</div>';
+  }else{
+    h+='<div class="grid">'+list.map((x,i)=>
+      '<button class="cell" data-a="inspo-open" data-i="'+i+'"><img data-img="'+x.imageId+'" alt=""></button>'
+    ).join('')+'</div>';
+  }
+  h+='<button class="fab" data-a="inspo-add" aria-label="Add images">+</button>';
+  return h;
+}
+function inspoFiltered(){
+  return S.inspo.filter(x=>S.inspoTag==='All'||(x.tags||[]).includes(S.inspoTag));
+}
+async function addInspo(){
+  const ids=await pickImages(true);
+  if(!ids.length) return;
+  const now=Date.now();
+  for(let k=0;k<ids.length;k++) await dbPut('inspo',{id:uid(),imageId:ids[k],tags:[],note:'',added:now-k});
+  await loadAll(); render();
+  toast(ids.length+' added');
+}
+
+/* lightbox */
+function renderLightbox(){
+  const old=document.querySelector('.lightbox'); if(old) old.remove();
+  if(!S.lightbox) return;
+  const {items,i}=S.lightbox;
+  const it=items[i]; if(!it) { S.lightbox=null; return; }
+  const d=document.createElement('div'); d.className='lightbox';
+  d.innerHTML=
+    '<div class="lbtop">'+
+      '<button class="iconbtn" data-a="lb-close" aria-label="Close">&times;</button>'+
+      '<div style="flex:1;text-align:center;font-size:13px;color:#b9b1a5">'+(i+1)+' / '+items.length+'</div>'+
+      '<button class="iconbtn" data-a="lb-edit" aria-label="Edit">&#9998;</button>'+
+      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>'+
+    '</div>'+
+    '<div class="lbstage" data-a="lb-zoom">'+
+      '<img data-img="'+it.imageId+'" alt="">'+
+      '<button class="lbnav l" data-a="lb-prev" aria-label="Previous"></button>'+
+      '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
+    '</div>'+
+    '<div class="lbbot">'+
+      ((it.tags&&it.tags.length)?'<div style="margin-bottom:6px">'+it.tags.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join('')+'</div>':'')+
+      (has(it.note)?'<div class="note" style="color:#e8e2d8">'+esc(it.note)+'</div>':
+        '<div style="color:#8b8377;font-size:13.5px">Tap the pencil to add tags or a note</div>')+
+    '</div>';
+  document.body.appendChild(d);
+  hydrate(d);
+  attachLightboxGestures(d);
+}
+function attachLightboxGestures(d){
+  const stage=d.querySelector('.lbstage'), img=stage.querySelector('img');
+  let z=1,ox=0,oy=0,sx=0,sy=0,drag=false,lastTap=0;
+  const apply=()=>{ img.style.transform='translate('+ox+'px,'+oy+'px) scale('+z+')'; };
+  stage.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1) return;
+    const t=Date.now();
+    if(t-lastTap<300){ z=z>1?1:2.5; ox=0; oy=0; apply(); lastTap=0; e.preventDefault(); return; }
+    lastTap=t; drag=z>1; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy;
+  },{passive:false});
+  stage.addEventListener('touchmove',e=>{
+    if(!drag||e.touches.length!==1) return;
+    ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; apply(); e.preventDefault();
+  },{passive:false});
+  stage.addEventListener('touchend',()=>{ drag=false; });
+  img.addEventListener('dblclick',()=>{ z=z>1?1:2.5; ox=0; oy=0; apply(); });
+}
+function lbStep(n){
+  if(!S.lightbox) return;
+  const L=S.lightbox;
+  L.i=(L.i+n+L.items.length)%L.items.length;
+  renderLightbox();
+}
+
+/* ------------------------------------------------------------------
+   MATERIALS
+   ------------------------------------------------------------------ */
+function viewMaterials(){
+  const q=S.q.toLowerCase();
+  const mats=S.materials.filter(m=>
+    (S.matType==='All'||m.type===S.matType) &&
+    (!q||[m.name,m.brand,m.code,m.notes].some(v=>(v||'').toLowerCase().includes(q))));
+  const clays=S.clays.filter(c=>!q||[c.name,c.supplier,c.notes].some(v=>(v||'').toLowerCase().includes(q)));
+  const showClays=S.matType==='All'||S.matType==='Clay';
+
+  let h='<div class="hdr"><div style="flex:1"><h1>Materials</h1>'+
+    '<div class="sub">'+S.materials.length+' surface &middot; '+S.clays.length+' clay</div></div>'+
+    '<button class="iconbtn" data-a="mat-new" aria-label="New material">+</button></div>';
+
+  const filters=['All','Glaze','Underglaze','Slip','Oxide','Clay'];
+  h+='<div class="chips">'+filters.map(t=>
+    '<button class="chip" data-a="mat-type" data-t="'+t+'" aria-pressed="'+(S.matType===t)+'">'+t+'</button>'
+  ).join('')+'</div>';
+
+  h+='<div class="wrap"><input class="search" data-a="q" placeholder="Search materials" value="'+esc(S.q)+'">';
+
+  if(S.matType!=='Clay'){
+    if(mats.length){
+      h+='<div class="sect">'+(S.matType==='All'?'Surface materials':S.matType+'s')+'</div><div class="card">'+
+        mats.map((m,i)=>matRow(m,i<mats.length-1)).join('')+'</div>';
+    }else if(!showClays||!clays.length){
+      h+='<div class="empty"><b>Nothing here yet</b>Add the glazes you actually use, with a photo of your own test tile.</div>';
+    }
+  }
+  if(showClays&&clays.length){
+    h+='<div class="sect">Clay bodies</div><div class="card">'+
+      clays.map((c,i)=>clayRow(c,i<clays.length-1)).join('')+'</div>';
+  }
+  if(S.matType==='Clay'&&!clays.length){
+    h+='<div class="empty"><b>No clay bodies yet</b>Track cone range and what the fired color actually looks like.</div>';
+  }
+  h+='</div><button class="fab" data-a="mat-new" aria-label="New material">+</button>';
+  return h;
+}
+function matRow(m,line){
+  const meta=[m.type!=='Glaze'?m.type:null, m.brand, m.code, has(m.cone)?'cone '+m.cone:null,
+    (m.recipe&&m.recipe.length)?'recipe':null].filter(has).join(' &middot; ');
+  return '<button class="row" data-a="open-mat" data-id="'+m.id+'"'+
+    (line?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+    '<span class="swatch" style="background-color:'+esc(m.colorHex||'#3a3227')+'"'+
+      (m.imageId?' data-img="'+m.imageId+'"':'')+'></span>'+
+    '<span class="grow"><span class="nm">'+esc(m.name)+'</span>'+
+    (meta?'<span class="mt">'+meta+'</span>':'')+'</span>'+
+    '<span class="chev">&rsaquo;</span></button>';
+}
+function clayRow(c,line){
+  const meta=[c.type,c.supplier,c.coneRange].filter(has).join(' &middot; ');
+  return '<button class="row" data-a="open-clay" data-id="'+c.id+'"'+
+    (line?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+    '<span class="swatch" style="background-color:'+esc(c.colorFiredHex||'#6b5c48')+'"'+
+      (c.imageId?' data-img="'+c.imageId+'"':'')+'></span>'+
+    '<span class="grow"><span class="nm">'+esc(c.name)+'</span>'+
+    (meta?'<span class="mt">'+meta+'</span>':'')+'</span>'+
+    '<span class="chev">&rsaquo;</span></button>';
+}
+
+function viewMaterial(m){
+  if(!m) return '<div class="empty">Gone.</div>';
+  const used=S.pieces.filter(p=>(p.pins||[]).some(pn=>(pn.layers||[]).some(l=>l.materialId===m.id)));
+  let h='<button class="backbtn" data-a="back">&lsaquo; Materials</button>'+
+    '<div class="hdr"><div style="flex:1"><h1>'+esc(m.name)+'</h1>'+
+    '<div class="sub">'+esc(m.type||'Glaze')+(has(m.cone)?' &middot; cone '+esc(m.cone):'')+'</div></div>'+
+    '<button class="iconbtn" data-a="mat-edit" data-id="'+m.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+  h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">'+
+     '<span class="swatch" style="width:76px;height:76px;border-radius:14px;background-color:'+esc(m.colorHex||'#3a3227')+'"'+
+     (m.imageId?' data-img="'+m.imageId+'"':'')+'></span>'+
+     '<div style="font-size:13.5px;color:var(--fg2);line-height:1.5">'+
+       (m.imageId?'Your test tile':'Swatch color &mdash; add a test tile photo when you edit')+
+       (m.foodSafe?'<div style="margin-top:6px"><span class="tag">Food safe</span></div>':'')+
+     '</div></div>';
+
+  const rows=[['Brand',m.brand],['Product code',m.code],['Cone',m.cone],
+    ['Application',[has(m.coats)?m.coats:null,m.method].filter(has).join(' ')]].filter(r=>has(r[1]));
+  if(rows.length) h+='<div class="card"><dl class="infogrid">'+
+    rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')+'</dl></div>';
+
+  if(m.recipe&&m.recipe.length){
+    const tot=m.recipe.reduce((s,r)=>s+(parseFloat(r.pct)||0),0);
+    h+='<div class="sect">Recipe</div><div class="card"><dl class="infogrid">'+
+      m.recipe.map(r=>'<dt>'+esc(r.pct)+'</dt><dd>'+esc(r.material)+'</dd>').join('')+
+      '</dl><div style="padding:0 13px 13px"><div class="total"><span>Total</span><b>'+
+      (Math.round(tot*10)/10)+'</b></div></div></div>';
+  }
+  if(has(m.notes)) h+='<div class="sect">Notes</div><div class="card"><div style="padding:13px" class="note">'+esc(m.notes)+'</div></div>';
+
+  h+='<div class="sect">Used on</div>';
+  if(used.length){
+    h+='<div class="card">'+used.map((p,i)=>
+      '<button class="row" data-a="open-piece" data-id="'+p.id+'"'+(i<used.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+      '<span class="swatch"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
+      '<span class="grow"><span class="nm">'+esc(p.name)+'</span><span class="mt">'+esc(p.stage||'')+'</span></span>'+
+      '<span class="chev">&rsaquo;</span></button>').join('')+'</div>';
+  }else{
+    h+='<div class="card"><div style="padding:15px;color:var(--fg3);font-size:14px">No pieces marked with this yet.</div></div>';
+  }
+  h+='<div style="height:14px"></div><button class="btn dgr" data-a="mat-del" data-id="'+m.id+'">Delete material</button></div>';
+  return h;
+}
+function viewClay(c){
+  if(!c) return '<div class="empty">Gone.</div>';
+  const used=S.pieces.filter(p=>p.clayId===c.id);
+  let h='<button class="backbtn" data-a="back">&lsaquo; Materials</button>'+
+    '<div class="hdr"><div style="flex:1"><h1>'+esc(c.name)+'</h1>'+
+    '<div class="sub">'+esc([c.type,c.coneRange].filter(has).join(' &middot; '))+'</div></div>'+
+    '<button class="iconbtn" data-a="clay-edit" data-id="'+c.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+  const rows=[['Supplier',c.supplier],['Type',c.type],['Cone range',c.coneRange],
+    ['Raw color',c.colorRaw],['Fired color',c.colorFired]].filter(r=>has(r[1]));
+  if(c.imageId) h+='<div class="photostage" style="margin-bottom:12px"><img data-img="'+c.imageId+'" alt=""></div>';
+  if(rows.length) h+='<div class="card"><dl class="infogrid">'+
+    rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')+'</dl></div>';
+  if(has(c.notes)) h+='<div class="sect">Notes</div><div class="card"><div style="padding:13px" class="note">'+esc(c.notes)+'</div></div>';
+  h+='<div class="sect">'+used.length+' piece'+(used.length===1?'':'s')+'</div>';
+  if(used.length) h+='<div class="card">'+used.map((p,i)=>
+      '<button class="row" data-a="open-piece" data-id="'+p.id+'"'+(i<used.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+      '<span class="swatch"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
+      '<span class="grow"><span class="nm">'+esc(p.name)+'</span><span class="mt">'+esc(p.stage||'')+'</span></span>'+
+      '<span class="chev">&rsaquo;</span></button>').join('')+'</div>';
+  h+='<div style="height:14px"></div><button class="btn dgr" data-a="clay-del" data-id="'+c.id+'">Delete clay body</button></div>';
+  return h;
+}
+
+/* ------------------------------------------------------------------
+   PIECES
+   ------------------------------------------------------------------ */
+function viewPieces(){
+  const q=S.q.toLowerCase();
+  const list=S.pieces.filter(p=>{
+    if(!q) return true;
+    const clay=clayById(p.clayId);
+    return [p.name,p.form,p.stage,p.notes,clay&&clay.name].some(v=>(v||'').toLowerCase().includes(q));
+  });
+  let h='<div class="hdr"><div style="flex:1"><h1>Pieces</h1>'+
+    '<div class="sub">'+S.pieces.length+' logged</div></div>'+
+    '<button class="iconbtn" data-a="piece-new" aria-label="New piece">+</button></div>'+
+    '<div class="wrap"><input class="search" data-a="q" placeholder="Search pieces" value="'+esc(S.q)+'">';
+  if(!list.length){
+    h+='<div class="empty"><b>'+(S.pieces.length?'No matches':'No pieces yet')+'</b>'+
+      (S.pieces.length?'Try a different search.':'Log a piece, add a photo, then tap the photo to mark which glazes went where.')+'</div>';
+  }else{
+    h+=list.map(p=>pieceCard(p)).join('');
+  }
+  h+='</div><button class="fab" data-a="piece-new" aria-label="New piece">+</button>';
+  return h;
+}
+function pieceCard(p){
+  const clay=clayById(p.clayId);
+  const meta=[clay&&clay.name,p.form].filter(has).join(' &middot; ');
+  const col=STAGE_COLOR[p.stage]||'#8e8578';
+  const npins=(p.pins||[]).length;
+  return '<button class="card pcard" data-a="open-piece" data-id="'+p.id+'" style="display:flex;width:100%;text-align:left">'+
+    '<span class="ph"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
+    '<span class="bd"><h3>'+esc(p.name)+'</h3>'+
+    (meta?'<span class="mt" style="display:block">'+meta+'</span>':'')+
+    (npins?'<span class="mt" style="display:block;margin-top:2px">'+npins+' glaze mark'+(npins===1?'':'s')+'</span>':'')+
+    '<span class="stage" style="color:'+col+';background:'+col+'22"><i></i>'+esc(p.stage||'Idea')+'</span>'+
+    '</span></button>';
+}
+function viewPiece(p){
+  if(!p) return '<div class="empty">Gone.</div>';
+  const photos=p.photos||[];
+  const idx=Math.min(S.photoIdx,Math.max(0,photos.length-1));
+  const photoId=photos[idx];
+  const pins=(p.pins||[]).filter(x=>x.photoId===photoId);
+  const clay=clayById(p.clayId);
+  const col=STAGE_COLOR[p.stage]||'#8e8578';
+
+  let h='<button class="backbtn" data-a="back">&lsaquo; Pieces</button>'+
+    '<div class="hdr"><div style="flex:1"><h1>'+esc(p.name)+'</h1>'+
+    '<div class="sub"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(p.stage||'Idea')+'</span></div></div>'+
+    '<button class="iconbtn" data-a="piece-edit" data-id="'+p.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+
+  if(photoId){
+    h+='<div class="photostage'+(S.pinMode?' pinning':'')+'" data-a="stage-tap" data-photo="'+photoId+'">'+
+       '<img data-img="'+photoId+'" alt="">'+
+       (S.showPins?pins.map(pn=>{
+         const n=(p.pins||[]).indexOf(pn)+1;
+         return '<button class="pin'+(S.activePin===pn.id?' on':'')+'" data-a="pin-open" data-pin="'+pn.id+'" '+
+           'style="left:'+(pn.x*100)+'%;top:'+(pn.y*100)+'%">'+n+'</button>';
+       }).join(''):'')+
+       '</div>';
+    if(S.pinMode){
+      h+='<div class="hintbar"><span>Tap the spot on the photo</span>'+
+         '<button data-a="pin-cancel">Cancel</button></div>';
+    }else{
+      h+='<div style="display:flex;gap:8px;margin-top:10px">'+
+         '<button class="btn sec" data-a="pin-start" style="flex:1">Mark a glaze</button>'+
+         (pins.length?'<button class="btn sec" data-a="pins-toggle" style="flex:none;width:58px" aria-label="Show or hide marks">'+(S.showPins?'&#128065;':'&#128584;')+'</button>':'')+
+         '</div>';
+    }
+  }
+  h+='<div class="strip">'+photos.map((id,i)=>
+      '<button class="th" data-a="photo-sel" data-i="'+i+'" data-img="'+id+'" aria-current="'+(i===idx)+'"></button>'
+    ).join('')+'<button class="add" data-a="photo-add" data-id="'+p.id+'" aria-label="Add photo">+</button>'+
+    (photoId?'<button class="add" data-a="photo-del" data-id="'+p.id+'" aria-label="Remove photo" style="color:var(--danger)">&minus;</button>':'')+
+    '</div>';
+
+  const all=p.pins||[];
+  if(all.length){
+    h+='<div class="sect">Glaze marks</div><div class="card">'+all.map((pn,i)=>{
+      const onThis=pn.photoId===photoId;
+      return '<button class="pinrow" data-a="pin-open" data-pin="'+pn.id+'"'+
+        (i<all.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+        '<span class="num">'+(i+1)+'</span><span class="grow" style="flex:1">'+
+        '<span class="layers">'+pinHTML(pn)+'</span>'+
+        (has(pn.note)?'<span class="mt" style="display:block;margin-top:3px">'+esc(pn.note)+'</span>':'')+
+        (onThis?'':'<span class="mt" style="display:block;margin-top:3px">on another photo</span>')+
+        '</span><span class="chev">&rsaquo;</span></button>';
+    }).join('')+'</div>';
+  }
+
+  const f=p.firing||{};
+  const rows=[
+    ['Clay body',clay?clay.name:''],
+    ['Form',p.form],
+    ['Started',fmtDate(p.dateStarted)],
+    ['Firing',[has(f.cone)?'cone '+f.cone:null,f.atmos,f.kiln].filter(has).join(' &middot; ')],
+    ['Schedule',f.schedule],
+    ['Fired on',fmtDate(f.date)]
+  ].filter(r=>has(r[1]));
+  if(rows.length) h+='<div class="sect">Details</div><div class="card"><dl class="infogrid">'+
+    rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')+'</dl></div>';
+  if(has(p.notes)) h+='<div class="sect">Notes</div><div class="card"><div style="padding:13px" class="note">'+esc(p.notes)+'</div></div>';
+  h+='<div style="height:14px"></div><button class="btn dgr" data-a="piece-del" data-id="'+p.id+'">Delete piece</button></div>';
+  return h;
+}
+function pinHTML(pn){
+  const ls=pn.layers||[];
+  if(!ls.length) return '<span style="color:var(--fg3)">no layers noted</span>';
+  return ls.map(l=>{
+    const m=matById(l.materialId);
+    const bits=[has(l.coats)?l.coats:null,l.method].filter(has).join(' ');
+    return '<span>'+esc(m?m.name:'unknown')+(bits?' <span style="color:var(--fg3);font-size:13px">('+esc(bits)+')</span>':'')+'</span>';
+  }).join('<span class="sep">&rarr;</span>');
+}
+
+/* ------------------------------------------------------------------
+   BACKUP
+   ------------------------------------------------------------------ */
+function viewBackup(){
+  const n=S.materials.length+S.clays.length+S.pieces.length+S.inspo.length;
+  return '<div class="hdr"><div style="flex:1"><h1>Backup</h1>'+
+    '<div class="sub">'+n+' records</div></div></div><div class="wrap">'+
+    '<div class="card"><dl class="infogrid">'+
+      '<dt>Surface materials</dt><dd>'+S.materials.length+'</dd>'+
+      '<dt>Clay bodies</dt><dd>'+S.clays.length+'</dd>'+
+      '<dt>Pieces</dt><dd>'+S.pieces.length+'</dd>'+
+      '<dt>Glaze marks</dt><dd>'+S.pieces.reduce((s,p)=>s+((p.pins||[]).length),0)+'</dd>'+
+      '<dt>Inspo images</dt><dd>'+S.inspo.length+'</dd>'+
+    '</dl></div>'+
+    '<div class="sect">Export</div>'+
+    '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
+      'Saves everything, photos included, as one file. Do this every few weeks &mdash; iOS can clear a home-screen app\'s storage if you go a long time without opening it.</div>'+
+    '<button class="btn" data-a="export">Export backup file</button>'+
+    '<div class="sect">Import</div>'+
+    '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
+      'Restores from a backup file. Records with the same id get overwritten; everything else is kept.</div>'+
+    '<button class="btn sec" data-a="import">Choose backup file</button>'+
+    '<div class="sect">Sample data</div>'+
+    '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
+      'Fills the app with a few fake glazes and pieces so you can see how it works. Safe to load and then wipe.</div>'+
+    '<button class="btn sec" data-a="seed">Load sample data</button>'+
+    '<div style="height:10px"></div>'+
+    '<button class="btn dgr" data-a="wipe">Erase everything</button>'+
+    '<div style="height:20px"></div></div>';
+}
+const b64=blob=>new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(blob); });
+function b64ToBlob(s,type){
+  const bin=atob(s), a=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
+  return new Blob([a],{type:type||'image/jpeg'});
+}
+async function doExport(){
+  toast('Packing backup…');
+  const out={app:'studio',version:1,exported:new Date().toISOString(),records:{},images:[]};
+  for(const s of ['materials','clays','pieces','inspo']) out.records[s]=await dbAll(s);
+  const imgs=await dbAll('images');
+  for(const im of imgs) out.images.push({id:im.id,w:im.w,h:im.h,data:await b64(im.blob)});
+  const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='studio-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Backup ready');
+}
+document.getElementById('jsonpick').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value='';
+  if(!f) return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!data||!data.records) throw new Error('not a studio backup');
+    toast('Importing…');
+    for(const s of ['materials','clays','pieces','inspo'])
+      for(const r of (data.records[s]||[])) await dbPut(s,r);
+    for(const im of (data.images||[])) await dbPut('images',{id:im.id,w:im.w,h:im.h,blob:b64ToBlob(im.data)});
+    urlCache.clear();
+    await loadAll(); render(); toast('Imported');
+  }catch(err){ console.error(err); toast('Could not read that file'); }
+});
+
+/* ------------------------------------------------------------------
+   sample data
+   ------------------------------------------------------------------ */
+function potDraw(bg,body,shape){
+  return (g,w,h)=>{
+    g.fillStyle=bg; g.fillRect(0,0,w,h);
+    g.fillStyle='rgba(0,0,0,.07)'; g.fillRect(0,h*.72,w,h*.28);
+    g.save(); g.translate(w/2,h*.66); g.fillStyle=body;
+    g.beginPath();
+    if(shape==='mug'){ g.ellipse(0,-h*.13,w*.17,h*.2,0,0,7); g.fill();
+      g.lineWidth=w*.035; g.strokeStyle=body; g.beginPath(); g.arc(w*.2,-h*.14,w*.07,-1.2,1.2); g.stroke(); }
+    else if(shape==='vase'){ g.moveTo(-w*.1,0); g.bezierCurveTo(-w*.28,-h*.2,-w*.12,-h*.42,-w*.06,-h*.5);
+      g.lineTo(w*.06,-h*.5); g.bezierCurveTo(w*.12,-h*.42,w*.28,-h*.2,w*.1,0); g.closePath(); g.fill(); }
+    else { g.ellipse(0,-h*.06,w*.22,h*.13,0,Math.PI,0); g.fill();
+      g.fillStyle='rgba(0,0,0,.18)'; g.beginPath(); g.ellipse(0,-h*.19,w*.22,h*.06,0,0,7); g.fill(); }
+    g.restore();
+  };
+}
+function tileDraw(c1,c2){
+  return (g,w,h)=>{
+    g.fillStyle=c1; g.fillRect(0,0,w,h);
+    const grd=g.createLinearGradient(0,0,0,h); grd.addColorStop(0,c2); grd.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=grd; g.fillRect(0,0,w,h);
+    for(let i=0;i<140;i++){ g.fillStyle='rgba(255,255,255,'+(Math.random()*.11)+')';
+      g.beginPath(); g.arc(Math.random()*w,Math.random()*h,Math.random()*11,0,7); g.fill(); }
+  };
+}
+async function seed(){
+  toast('Building sample data…');
+  const now=Date.now();
+  const claySt={id:uid(),name:'Standard 112 Buff',supplier:'Standard Ceramic',type:'Stoneware',
+    coneRange:'Cone 6',colorRaw:'Warm buff',colorFired:'Toasty oatmeal, speckles',
+    colorFiredHex:'#c4a683',notes:'Throws forgiving. Speckles read through pale glazes.'};
+  const clayPo={id:uid(),name:'Frost Porcelain',supplier:'Continental Clay',type:'Porcelain',
+    coneRange:'Cone 6-10',colorRaw:'Bright white',colorFired:'Cold white',colorFiredHex:'#e9e6df',
+    notes:'Unforgiving on the wheel. Worth it for celadons.'};
+  await dbPut('clays',claySt); await dbPut('clays',clayPo);
+
+  const mats=[
+    {name:'Celadon Blue',type:'Glaze',brand:'Amaco',code:'C-1',cone:'6',colorHex:'#8fb2b8',
+      method:'dip',coats:'2 dips',foodSafe:true,notes:'Breaks clear on edges. Pools beautifully in carved lines.',
+      tile:['#8fb2b8','#b9d3d6']},
+    {name:'Iron Red',type:'Glaze',brand:'Coyote',code:'IR-2',cone:'6',colorHex:'#a24f33',
+      method:'brush',coats:'3 coats',foodSafe:true,notes:'Needs thickness. Thin spots go dull brown.',
+      tile:['#a24f33','#cf7a4a']},
+    {name:'Satin Oatmeal',type:'Glaze',cone:'6',colorHex:'#cfc0a4',method:'dip',coats:'1 dip',foodSafe:true,
+      recipe:[{material:'Custer Feldspar',pct:'32'},{material:'Silica',pct:'26'},{material:'EPK Kaolin',pct:'20'},
+              {material:'Whiting',pct:'14'},{material:'Talc',pct:'8'}],
+      notes:'Studio bucket. Reliable liner, quiet under everything else.',tile:['#cfc0a4','#e3d8bf']},
+    {name:'Tenmoku',type:'Glaze',brand:'Mayco',code:'SW-137',cone:'6',colorHex:'#3b2318',
+      method:'dip',coats:'2 dips',notes:'Black where thick, rust where thin. Runs if you overdo it.',
+      tile:['#3b2318','#7a4522']},
+    {name:'Deep Sea',type:'Underglaze',brand:'Amaco',code:'LUG-53',cone:'6',colorHex:'#2f5f7a',
+      method:'brush',coats:'2 coats',notes:'For painting on bisque. Needs clear over it.',tile:['#2f5f7a','#4a86a6']}
+  ];
+  const matIds={};
+  for(const m of mats){
+    const id=uid();
+    const imageId=await storeGeneratedImage(tileDraw(m.tile[0],m.tile[1]),520,700);
+    const rec=Object.assign({},m,{id,imageId}); delete rec.tile;
+    await dbPut('materials',rec); matIds[m.name]=id;
+  }
+
+  const p1Photo=await storeGeneratedImage(potDraw('#e6ded0','#a8c0c4','bowl'),1000,1000);
+  const p1Photo2=await storeGeneratedImage(potDraw('#dcd3c3','#94aeb4','bowl'),1000,1000);
+  const p2Photo=await storeGeneratedImage(potDraw('#e9e2d5','#8f5a3c','mug'),1000,1000);
+  const p3Photo=await storeGeneratedImage(potDraw('#e4dccd','#4a3226','vase'),1000,1000);
+
+  await dbPut('pieces',{id:uid(),name:'Wide serving bowl',clayId:claySt.id,form:'Bowl, 11in',
+    stage:'Fired',dateStarted:'2026-06-14',photos:[p1Photo,p1Photo2],
+    firing:{cone:'6',atmos:'Oxidation',kiln:'Electric',schedule:'Slow cool from 1900F',date:'2026-07-02'},
+    notes:'The one that finally came out right. Trim foot thinner next time.',
+    pins:[
+      {id:uid(),photoId:p1Photo,x:.5,y:.42,note:'Interior pool',
+       layers:[{materialId:matIds['Satin Oatmeal'],coats:'1',method:'dip'},
+               {materialId:matIds['Celadon Blue'],coats:'2',method:'dip'}]},
+      {id:uid(),photoId:p1Photo,x:.27,y:.62,note:'Rim break',
+       layers:[{materialId:matIds['Celadon Blue'],coats:'2',method:'dip'}]}
+    ],updated:now});
+  await dbPut('pieces',{id:uid(),name:'Morning mug no.4',clayId:claySt.id,form:'Mug, 12oz',
+    stage:'Glazed',dateStarted:'2026-07-20',photos:[p2Photo],
+    firing:Object.assign({},DEF_FIRING),notes:'Handle pulled a touch short. Still comfortable.',
+    pins:[{id:uid(),photoId:p2Photo,x:.44,y:.48,note:'Body, brushed on',
+      layers:[{materialId:matIds['Iron Red'],coats:'3',method:'brush'}]}],updated:now-1000});
+  await dbPut('pieces',{id:uid(),name:'Tall bud vase',clayId:clayPo.id,form:'Vase, 8in',
+    stage:'Bisque',dateStarted:'2026-08-02',photos:[p3Photo],
+    firing:Object.assign({},DEF_FIRING),notes:'Want tenmoku over the bottom third, celadon above.',
+    pins:[],updated:now-2000});
+
+  const inspoSpecs=[['#c9b79c','#8aa5a8','bowl'],['#b9a48b','#6d4a34','mug'],['#d3c3ab','#3b4a52','vase'],
+    ['#a89680','#c07a4e','bowl'],['#ccc0ad','#2f5f7a','vase'],['#bfae95','#5d6b4f','mug']];
+  const tagSets=[['form'],['surface'],['form','glaze'],['glaze'],['surface','glaze'],['handles']];
+  for(let i=0;i<inspoSpecs.length;i++){
+    const s=inspoSpecs[i];
+    const imageId=await storeGeneratedImage(potDraw(s[0],s[1],s[2]),900,900);
+    await dbPut('inspo',{id:uid(),imageId,tags:tagSets[i],note:i===0?'That foot ring. Almost no undercut.':'',added:now-i});
+  }
+  urlCache.clear();
+  await loadAll(); render(); toast('Sample data loaded');
+}
+
+/* ==================================================================
+   forms
+   ================================================================== */
+function closeSheet(){ document.getElementById('modal').innerHTML=''; }
+function sheet(title,bodyHTML,saveAction){
+  document.getElementById('modal').innerHTML=
+    '<div class="sheet"><div class="sh">'+
+      '<button data-a="sheet-close">Cancel</button><h2>'+esc(title)+'</h2>'+
+      (saveAction?'<button data-a="'+saveAction+'">Save</button>':'<span style="width:52px"></span>')+
+    '</div><div class="sb">'+bodyHTML+'</div></div>';
+  hydrate(document.getElementById('modal'));
+  const first=document.querySelector('#modal .in');
+  if(first&&first.tagName==='INPUT'&&first.type==='text') setTimeout(()=>first.focus(),120);
+}
+function fld(label,inner){ return '<label class="f"><span>'+label+'</span>'+inner+'</label>'; }
+function txt(k,v,ph){ return '<input class="in" type="text" data-f="'+k+'" value="'+esc(v||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'; }
+function sel(k,list,v){ return '<select class="in" data-f="'+k+'">'+opts(list,v)+'</select>'; }
+function area(k,v,ph){ return '<textarea class="in" data-f="'+k+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'+esc(v||'')+'</textarea>'; }
+function readForm(scope){
+  const o={};
+  scope.querySelectorAll('[data-f]').forEach(el=>{
+    o[el.dataset.f]= el.type==='checkbox' ? el.checked : el.value;
+  });
+  return o;
+}
+
+/* ---------- material form ---------- */
+let draft=null;   // holds recipe rows / layers while a sheet is open
+function matForm(m){
+  m=m||{type:'Glaze',cone:'6',colorHex:'#8fb2b8',recipe:[]};
+  draft={recipe:(m.recipe||[]).map(r=>Object.assign({},r))};
+  if(!draft.recipe.length) draft.recipe=[{material:'',pct:''}];
+  S.recipeOpen=!!(m.recipe&&m.recipe.length);
+  const b=
+    '<input type="hidden" data-f="id" value="'+esc(m.id||'')+'">'+
+    fld('Name',txt('name',m.name,'Celadon Blue'))+
+    '<div class="two">'+fld('Type',sel('type',MAT_TYPES,m.type||'Glaze'))+
+      fld('Cone',txt('cone',m.cone,'6'))+'</div>'+
+    '<div class="two">'+fld('Swatch color','<input class="in" type="color" data-f="colorHex" value="'+esc(m.colorHex||'#8fb2b8')+'">')+
+      fld('Test tile','<button class="in" data-a="mat-photo" style="text-align:left;color:'+(m.imageId?'var(--fg)':'var(--fg3)')+'">'+
+        (m.imageId?'Replace photo':'Add photo')+'</button>')+'</div>'+
+    (m.imageId?'<div class="photostage" style="margin:-4px 0 13px"><img data-img="'+m.imageId+'" alt=""></div>':'')+
+    '<div class="two">'+fld('Brand',txt('brand',m.brand,'Amaco'))+fld('Product code',txt('code',m.code,'C-1'))+'</div>'+
+    '<div class="two">'+fld('Application',sel('method',[''].concat(METHODS),m.method||''))+
+      fld('Coats',txt('coats',m.coats,'2 dips'))+'</div>'+
+    '<label class="cb"><input type="checkbox" data-f="foodSafe"'+(m.foodSafe?' checked':'')+'><span>Food safe</span></label>'+
+    fld('Notes',area('notes',m.notes,'How it behaves. Where it fails.'))+
+    '<button class="disc" data-a="recipe-toggle">'+
+      '<span style="font-size:12px">'+(S.recipeOpen?'&#9662;':'&#9656;')+'</span> Recipe'+
+      '<span style="color:var(--fg3);font-weight:400;margin-left:auto">optional</span></button>'+
+    '<div id="recipebox"'+(S.recipeOpen?'':' hidden')+'>'+recipeHTML()+'</div>';
+  sheet(m.id?'Edit material':'New material',b,'mat-save');
+}
+function recipeHTML(){
+  const tot=draft.recipe.reduce((s,r)=>s+(parseFloat(r.pct)||0),0);
+  const r100=Math.abs(tot-100)<.05;
+  return '<div class="orderhint">Material and percentage. Doesn\'t have to total 100.</div>'+
+    draft.recipe.map((r,i)=>
+      '<div class="rrow">'+
+        '<input class="in pc" type="text" inputmode="decimal" data-r="pct" data-i="'+i+'" value="'+esc(r.pct)+'" placeholder="%">'+
+        '<input class="in" type="text" data-r="material" data-i="'+i+'" value="'+esc(r.material)+'" placeholder="Custer Feldspar">'+
+        '<button class="x" data-a="recipe-del" data-i="'+i+'" aria-label="Remove">&times;</button>'+
+      '</div>').join('')+
+    '<button class="btn sec" data-a="recipe-add" style="margin-top:2px">+ Add material</button>'+
+    '<div class="total'+(tot&&!r100?' off':'')+'"><span>Total</span><b>'+(Math.round(tot*10)/10)+'</b></div>';
+}
+function syncRecipe(){
+  const box=document.getElementById('recipebox'); if(!box) return;
+  box.querySelectorAll('[data-r]').forEach(el=>{ draft.recipe[+el.dataset.i][el.dataset.r]=el.value; });
+}
+function redrawRecipe(){
+  const box=document.getElementById('recipebox'); if(!box) return;
+  box.innerHTML=recipeHTML();
+}
+async function matSave(){
+  const scope=document.getElementById('modal');
+  const v=readForm(scope);
+  if(!has(v.name)){ toast('Give it a name'); return; }
+  syncRecipe();
+  const recipe=draft.recipe.filter(r=>has(r.material)||has(r.pct));
+  const id=has(v.id)?v.id:uid();
+  const prev=matById(id)||{};
+  await dbPut('materials',Object.assign({},prev,v,{id,recipe,imageId:draft.imageId||prev.imageId||null,updated:Date.now()}));
+  draft=null; closeSheet(); await loadAll(); render(); toast('Saved');
+}
+
+/* ---------- clay form ---------- */
+function clayForm(c){
+  c=c||{type:'Stoneware',coneRange:'Cone 6'};
+  draft={};
+  const b='<input type="hidden" data-f="id" value="'+esc(c.id||'')+'">'+
+    fld('Name',txt('name',c.name,'Standard 112 Buff'))+
+    '<div class="two">'+fld('Type',sel('type',CLAY_TYPES,c.type))+fld('Cone range',txt('coneRange',c.coneRange,'Cone 6'))+'</div>'+
+    fld('Supplier',txt('supplier',c.supplier,'Standard Ceramic'))+
+    '<div class="two">'+fld('Raw color',txt('colorRaw',c.colorRaw,'Warm buff'))+
+      fld('Fired color',txt('colorFired',c.colorFired,'Toasty oatmeal'))+'</div>'+
+    '<div class="two">'+fld('Fired swatch','<input class="in" type="color" data-f="colorFiredHex" value="'+esc(c.colorFiredHex||'#c4a683')+'">')+
+      fld('Photo','<button class="in" data-a="clay-photo" style="text-align:left;color:'+(c.imageId?'var(--fg)':'var(--fg3)')+'">'+
+      (c.imageId?'Replace photo':'Add photo')+'</button>')+'</div>'+
+    (c.imageId?'<div class="photostage" style="margin:-4px 0 13px"><img data-img="'+c.imageId+'" alt=""></div>':'')+
+    fld('Notes',area('notes',c.notes,'How it throws. How it fires.'));
+  sheet(c.id?'Edit clay body':'New clay body',b,'clay-save');
+}
+async function claySave(){
+  const v=readForm(document.getElementById('modal'));
+  if(!has(v.name)){ toast('Give it a name'); return; }
+  const id=has(v.id)?v.id:uid();
+  const prev=clayById(id)||{};
+  await dbPut('clays',Object.assign({},prev,v,{id,imageId:draft.imageId||prev.imageId||null,updated:Date.now()}));
+  draft=null; closeSheet(); await loadAll(); render(); toast('Saved');
+}
+
+/* ---------- piece form ---------- */
+function pieceForm(p){
+  const isNew=!p;
+  p=p||{stage:'Thrown',firing:Object.assign({},DEF_FIRING),dateStarted:new Date().toISOString().slice(0,10)};
+  const f=p.firing||{};
+  draft={};
+  const clayOpts=[{v:'',l:'—'}].concat(S.clays.map(c=>({v:c.id,l:c.name})));
+  const b='<input type="hidden" data-f="id" value="'+esc(p.id||'')+'">'+
+    fld('Name',txt('name',p.name,'Morning mug no.4'))+
+    '<div class="two">'+fld('Stage',sel('stage',STAGES,p.stage))+fld('Form',txt('form',p.form,'Mug, 12oz'))+'</div>'+
+    fld('Clay body',S.clays.length?sel('clayId',clayOpts,p.clayId||''):
+      '<button class="in" data-a="clay-new" style="text-align:left;color:var(--fg3)">No clay bodies yet — add one</button>')+
+    fld('Started','<input class="in" type="date" data-f="dateStarted" value="'+esc(p.dateStarted||'')+'">')+
+    fld('Notes',area('notes',p.notes,'What you were going for. What went sideways.'))+
+    '<button class="disc" data-a="adv-toggle">'+
+      '<span style="font-size:12px">'+(S.advOpen?'&#9662;':'&#9656;')+'</span> Firing'+
+      '<span style="color:var(--fg3);font-weight:400;margin-left:auto">cone '+esc(f.cone||'6')+' &middot; '+esc(f.atmos||'Oxidation')+'</span></button>'+
+    '<div id="advbox"'+(S.advOpen?'':' hidden')+'>'+
+      '<div class="two">'+fld('Cone',txt('f_cone',f.cone||'6'))+fld('Atmosphere',sel('f_atmos',ATMOS,f.atmos||'Oxidation'))+'</div>'+
+      '<div class="two">'+fld('Kiln',txt('f_kiln',f.kiln||'Electric'))+
+        fld('Fired on','<input class="in" type="date" data-f="f_date" value="'+esc(f.date||'')+'">')+'</div>'+
+      fld('Schedule notes',area('f_schedule',f.schedule,'Slow cool from 1900F'))+
+    '</div>';
+  sheet(isNew?'New piece':'Edit piece',b,'piece-save');
+}
+async function pieceSave(){
+  const v=readForm(document.getElementById('modal'));
+  if(!has(v.name)){ toast('Give it a name'); return; }
+  const id=has(v.id)?v.id:uid();
+  const prev=pieceById(id)||{};
+  const rec=Object.assign({},prev,{
+    id,name:v.name,stage:v.stage,form:v.form,clayId:v.clayId||prev.clayId||'',
+    dateStarted:v.dateStarted,notes:v.notes,
+    firing:{cone:v.f_cone||'6',atmos:v.f_atmos||'Oxidation',kiln:v.f_kiln||'',schedule:v.f_schedule||'',date:v.f_date||''},
+    photos:prev.photos||[], pins:prev.pins||[], updated:Date.now()
+  });
+  await dbPut('pieces',rec);
+  const wasNew=!prev.id;
+  draft=null; closeSheet(); await loadAll();
+  if(wasNew) open('piece',id); else render();
+  toast('Saved');
+}
+
+/* ---------- inspo form ---------- */
+function inspoForm(it){
+  draft={};
+  const b='<input type="hidden" data-f="id" value="'+esc(it.id)+'">'+
+    fld('Tags',txt('tags',(it.tags||[]).join(', '),'form, surface, handles'))+
+    '<div class="orderhint">Comma separated. Reused tags become filters.</div>'+
+    fld('Note',area('note',it.note,'What you want to steal from this.'));
+  sheet('Image details',b,'inspo-save');
+}
+async function inspoSave(){
+  const v=readForm(document.getElementById('modal'));
+  const prev=S.inspo.find(x=>x.id===v.id)||{};
+  const tags=String(v.tags||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+  await dbPut('inspo',Object.assign({},prev,{tags,note:v.note}));
+  closeSheet(); await loadAll();
+  if(S.lightbox) S.lightbox.items=inspoFiltered();
+  render(); toast('Saved');
+}
+
+/* ---------- pin sheet ---------- */
+function pinForm(piece,pin,coords){
+  const isNew=!pin;
+  pin=pin||{id:uid(),photoId:coords.photoId,x:coords.x,y:coords.y,layers:[],note:''};
+  draft={layers:(pin.layers||[]).map(l=>Object.assign({},l)), pinId:pin.id, pieceId:piece.id,
+         photoId:pin.photoId, x:pin.x, y:pin.y, isNew:isNew};
+  if(!draft.layers.length) draft.layers=[{materialId:'',coats:'',method:''}];
+  const b='<div class="orderhint">Layers in the order you applied them &mdash; first at the top.</div>'+
+    '<div id="layerbox">'+layersHTML()+'</div>'+
+    fld('Note',txt('note',pin.note,'Interior pool, rim break…'))+
+    (isNew?'':'<button class="btn dgr" data-a="pin-del">Delete this mark</button>');
+  sheet(isNew?'What\'s at this spot?':'Edit mark',b,'pin-save');
+}
+function layersHTML(){
+  const matOpts=[{v:'',l:'Choose material…'}].concat(
+    S.materials.map(m=>({v:m.id,l:m.name+(m.type!=='Glaze'?' ('+m.type.toLowerCase()+')':'')})));
+  if(!S.materials.length){
+    return '<div class="lyr"><div style="color:var(--fg2);font-size:14px;line-height:1.5">'+
+      'No materials yet. Add a glaze first and it\'ll show up here.</div>'+
+      '<button class="btn sec" data-a="mat-new" style="margin-top:10px">Add a glaze</button></div>';
+  }
+  return draft.layers.map((l,i)=>
+    '<div class="lyr">'+
+      '<div class="top"><span class="n">'+(i===0?'first':(i===draft.layers.length-1?'last':'then'))+'</span>'+
+      (draft.layers.length>1?'<button class="x" data-a="layer-del" data-i="'+i+'" aria-label="Remove layer">&times;</button>':'')+
+      '</div>'+
+      '<select class="in" data-l="materialId" data-i="'+i+'" style="margin-bottom:8px">'+opts(matOpts,l.materialId)+'</select>'+
+      '<div class="two">'+
+        '<input class="in" type="text" inputmode="decimal" data-l="coats" data-i="'+i+'" value="'+esc(l.coats)+'" placeholder="Coats">'+
+        '<select class="in" data-l="method" data-i="'+i+'">'+opts([{v:'',l:'Method'}].concat(METHODS),l.method)+'</select>'+
+      '</div>'+
+    '</div>').join('')+
+    '<button class="btn sec" data-a="layer-add" style="margin-bottom:14px">+ Add a layer on top</button>';
+}
+function syncLayers(){
+  const box=document.getElementById('layerbox'); if(!box) return;
+  box.querySelectorAll('[data-l]').forEach(el=>{ draft.layers[+el.dataset.i][el.dataset.l]=el.value; });
+}
+function redrawLayers(){
+  const box=document.getElementById('layerbox'); if(box) box.innerHTML=layersHTML();
+}
+async function pinSave(){
+  syncLayers();
+  const v=readForm(document.getElementById('modal'));
+  const p=pieceById(draft.pieceId); if(!p) return;
+  const layers=draft.layers.filter(l=>has(l.materialId));
+  if(!layers.length){ toast('Pick at least one material'); return; }
+  const pins=(p.pins||[]).slice();
+  const rec={id:draft.pinId,photoId:draft.photoId,x:draft.x,y:draft.y,layers,note:v.note||''};
+  const at=pins.findIndex(x=>x.id===draft.pinId);
+  if(at>=0) pins[at]=rec; else pins.push(rec);
+  await dbPut('pieces',Object.assign({},p,{pins,updated:Date.now()}));
+  S.activePin=rec.id; draft=null; closeSheet(); await loadAll(); render(); toast('Marked');
+}
+async function pinDelete(){
+  const p=pieceById(draft.pieceId); if(!p) return;
+  const pins=(p.pins||[]).filter(x=>x.id!==draft.pinId);
+  await dbPut('pieces',Object.assign({},p,{pins,updated:Date.now()}));
+  draft=null; closeSheet(); await loadAll(); render(); toast('Deleted');
+}
+
+/* ==================================================================
+   events
+   ================================================================== */
+document.addEventListener('click',async ev=>{
+  const el=ev.target.closest('[data-a]'); if(!el) return;
+  const a=el.dataset.a, id=el.dataset.id;
+
+  /* --- pin placement takes priority --- */
+  if(a==='stage-tap'){
+    if(!S.pinMode) return;
+    const box=el.getBoundingClientRect();
+    const x=Math.min(1,Math.max(0,(ev.clientX-box.left)/box.width));
+    const y=Math.min(1,Math.max(0,(ev.clientY-box.top)/box.height));
+    S.pinMode=false;
+    pinForm(pieceById(S.route.id),null,{photoId:el.dataset.photo,x,y});
+    render();
+    return;
+  }
+
+  switch(a){
+    case 'tab': go(el.dataset.k); break;
+    case 'back': back(); break;
+    case 'sheet-close': draft=null; closeSheet(); break;
+
+    /* inspo */
+    case 'inspo-add': await addInspo(); break;
+    case 'inspo-tag': S.inspoTag=el.dataset.t; render(); break;
+    case 'inspo-open':
+      S.lightbox={items:inspoFiltered(),i:+el.dataset.i}; renderLightbox(); break;
+    case 'lb-close': S.lightbox=null; renderLightbox(); break;
+    case 'lb-prev': lbStep(-1); break;
+    case 'lb-next': lbStep(1); break;
+    case 'lb-edit': inspoForm(S.lightbox.items[S.lightbox.i]); break;
+    case 'lb-del': {
+      const it=S.lightbox.items[S.lightbox.i];
+      if(!confirm('Delete this image?')) break;
+      await dbDel('inspo',it.id); if(it.imageId) await dbDel('images',it.imageId);
+      urlCache.delete(it.imageId);
+      await loadAll();
+      const items=inspoFiltered();
+      if(!items.length) S.lightbox=null;
+      else { S.lightbox.items=items; S.lightbox.i=Math.min(S.lightbox.i,items.length-1); }
+      render(); break;
+    }
+    case 'inspo-save': await inspoSave(); break;
+
+    /* materials */
+    case 'mat-type': S.matType=el.dataset.t; render(); break;
+    case 'mat-new': {
+      closeSheet();
+      if(S.matType==='Clay') clayForm(null);
+      else {
+        document.getElementById('modal').innerHTML=
+          '<div class="sheet"><div class="sh"><button data-a="sheet-close">Cancel</button>'+
+          '<h2>Add what?</h2><span style="width:52px"></span></div><div class="sb">'+
+          '<button class="btn" data-a="mat-new-surface" style="margin-bottom:10px">Glaze or other surface material</button>'+
+          '<button class="btn sec" data-a="clay-new">Clay body</button></div></div>';
+      }
+      break;
+    }
+    case 'mat-new-surface': closeSheet(); matForm(null); break;
+    case 'clay-new': closeSheet(); clayForm(null); break;
+    case 'open-mat': open('material',id); break;
+    case 'open-clay': open('clay',id); break;
+    case 'mat-edit': matForm(matById(id)); break;
+    case 'clay-edit': clayForm(clayById(id)); break;
+    case 'mat-save': await matSave(); break;
+    case 'clay-save': await claySave(); break;
+    case 'recipe-toggle': syncRecipe(); S.recipeOpen=!S.recipeOpen; {
+        const box=document.getElementById('recipebox');
+        box.hidden=!S.recipeOpen; redrawRecipe();
+        el.querySelector('span').innerHTML=S.recipeOpen?'&#9662;':'&#9656;';
+      } break;
+    case 'recipe-add': syncRecipe(); draft.recipe.push({material:'',pct:''}); redrawRecipe(); break;
+    case 'recipe-del': syncRecipe(); draft.recipe.splice(+el.dataset.i,1);
+      if(!draft.recipe.length) draft.recipe=[{material:'',pct:''}]; redrawRecipe(); break;
+    case 'mat-photo': {
+      const ids=await pickImages(false);
+      if(ids[0]){ draft.imageId=ids[0]; const v=readForm(document.getElementById('modal'));
+        const cur=matById(v.id)||{}; matForm(Object.assign({},cur,v,{imageId:ids[0],recipe:draft.recipe})); draft.imageId=ids[0]; }
+      break;
+    }
+    case 'clay-photo': {
+      const ids=await pickImages(false);
+      if(ids[0]){ draft.imageId=ids[0]; const v=readForm(document.getElementById('modal'));
+        const cur=clayById(v.id)||{}; clayForm(Object.assign({},cur,v,{imageId:ids[0]})); draft.imageId=ids[0]; }
+      break;
+    }
+    case 'mat-del':
+      if(!confirm('Delete this material? Glaze marks that used it will show "unknown".')) break;
+      await dbDel('materials',id); await loadAll(); back(); toast('Deleted'); break;
+    case 'clay-del':
+      if(!confirm('Delete this clay body?')) break;
+      await dbDel('clays',id); await loadAll(); back(); toast('Deleted'); break;
+
+    /* pieces */
+    case 'piece-new': closeSheet(); pieceForm(null); break;
+    case 'open-piece': open('piece',id); break;
+    case 'piece-edit': pieceForm(pieceById(id)); break;
+    case 'piece-save': await pieceSave(); break;
+    case 'piece-del':
+      if(!confirm('Delete this piece and its marks?')) break;
+      await dbDel('pieces',id); await loadAll(); back(); toast('Deleted'); break;
+    case 'adv-toggle': {
+      S.advOpen=!S.advOpen;
+      const box=document.getElementById('advbox');
+      box.hidden=!S.advOpen;
+      el.querySelector('span').innerHTML=S.advOpen?'&#9662;':'&#9656;';
+      break;
+    }
+    case 'photo-sel': S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
+    case 'photo-add': {
+      const ids=await pickImages(true);
+      if(!ids.length) break;
+      const p=pieceById(id);
+      await dbPut('pieces',Object.assign({},p,{photos:(p.photos||[]).concat(ids),updated:Date.now()}));
+      await loadAll(); S.photoIdx=((pieceById(id).photos||[]).length-ids.length); render(); break;
+    }
+    case 'photo-del': {
+      const p=pieceById(id); const photos=(p.photos||[]).slice();
+      const gone=photos[Math.min(S.photoIdx,photos.length-1)];
+      if(!gone) break;
+      if(!confirm('Remove this photo? Marks on it are removed too.')) break;
+      photos.splice(photos.indexOf(gone),1);
+      const pins=(p.pins||[]).filter(x=>x.photoId!==gone);
+      await dbPut('pieces',Object.assign({},p,{photos,pins,updated:Date.now()}));
+      await dbDel('images',gone); urlCache.delete(gone);
+      S.photoIdx=0; await loadAll(); render(); break;
+    }
+    case 'pin-start': S.pinMode=true; S.showPins=true; render(); break;
+    case 'pin-cancel': S.pinMode=false; render(); break;
+    case 'pins-toggle': S.showPins=!S.showPins; render(); break;
+    case 'pin-open': {
+      const p=pieceById(S.route.id);
+      const pin=(p.pins||[]).find(x=>x.id===el.dataset.pin);
+      if(!pin) break;
+      if(pin.photoId!==(p.photos||[])[S.photoIdx]){ S.photoIdx=(p.photos||[]).indexOf(pin.photoId); }
+      S.activePin=pin.id;
+      pinForm(p,pin); render(); break;
+    }
+    case 'pin-save': await pinSave(); break;
+    case 'pin-del': if(confirm('Delete this mark?')) await pinDelete(); break;
+    case 'layer-add': syncLayers(); draft.layers.push({materialId:'',coats:'',method:''}); redrawLayers(); break;
+    case 'layer-del': syncLayers(); draft.layers.splice(+el.dataset.i,1);
+      if(!draft.layers.length) draft.layers=[{materialId:'',coats:'',method:''}]; redrawLayers(); break;
+
+    /* backup */
+    case 'export': await doExport(); break;
+    case 'import': document.getElementById('jsonpick').click(); break;
+    case 'seed': await seed(); break;
+    case 'wipe':
+      if(!confirm('Erase all pieces, materials, and images? This cannot be undone.')) break;
+      for(const s of STORES) await dbClear(s);
+      urlCache.clear(); await loadAll(); render(); toast('Erased'); break;
+  }
+});
+
+/* search input */
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.dataset&&el.dataset.a==='q'){
+    S.q=el.value;
+    const app=document.getElementById('app');
+    const pos=el.selectionStart;
+    render();
+    const nu=app.querySelector('[data-a="q"]');
+    if(nu){ nu.focus(); try{ nu.setSelectionRange(pos,pos); }catch(_){} }
+  }
+  if(el.dataset&&el.dataset.r){ syncRecipe();
+    const t=document.querySelector('#recipebox .total');
+    if(t){ const tot=draft.recipe.reduce((s,r)=>s+(parseFloat(r.pct)||0),0);
+      t.querySelector('b').textContent=Math.round(tot*10)/10;
+      t.classList.toggle('off',!!tot&&Math.abs(tot-100)>=.05); } }
+});
+document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.l) syncLayers(); });
+
+/* close modal by tapping the scrim */
+document.getElementById('modal').addEventListener('click',e=>{
+  if(e.target.id==='modal'){ draft=null; closeSheet(); }
+});
+/* hardware / gesture back */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(document.getElementById('modal').innerHTML){ draft=null; closeSheet(); }
+  else if(S.lightbox){ S.lightbox=null; renderLightbox(); }
+  else if(S.route) back();
+});
+
+/* ==================================================================
+   boot
+   ================================================================== */
+(async function(){
+  try{
+    await openDB();
+    await loadAll();
+    render();
+  }catch(e){
+    console.error(e);
+    document.getElementById('app').innerHTML=
+      '<div class="empty"><b>Storage unavailable</b>This app needs local storage. If you\'re in a private window, try a normal one.</div>';
+  }
+})();
+window.__seed=seed;
+</script>
+</body>
+</html>

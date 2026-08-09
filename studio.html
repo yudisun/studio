@@ -9,7 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Studio">
 <meta name="theme-color" content="#f6efe6">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f6efe6'/%3E%3Cpath d='M56 120c0-30 8-52 34-52s34 22 34 52z' fill='%232e5c44'/%3E%3Cellipse cx='90' cy='120' rx='34' ry='8' fill='%23214733'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
   --bg:#f6efe6; --bg2:#ffffff; --bg3:#f0e4d2; --line:#e6d8c4;
@@ -109,10 +110,11 @@ a{color:var(--accent)}
   border:1px solid var(--line);line-height:0}
 .photostage img{width:100%;display:block}
 .photostage.pinning{cursor:crosshair;box-shadow:0 0 0 2px var(--accent)}
-.pin{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;
-  background:var(--accent);color:var(--accent-fg);font-size:13px;font-weight:750;
-  display:grid;place-items:center;box-shadow:0 0 0 2px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.5);line-height:1}
-.pin.on{outline:3px solid #fff}
+.pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;
+  background:var(--accent);color:var(--accent-fg);font-size:11px;font-weight:750;
+  display:grid;place-items:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 1px 5px rgba(0,0,0,.4);line-height:1}
+.pin.on{outline:2px solid #fff}
+.pin::after{content:"";position:absolute;inset:-13px} /* 48px tap target behind a 22px marker */
 .strip{display:flex;gap:7px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
 .strip .th{width:62px;height:62px;flex:none;border-radius:10px;background:var(--bg3) center/cover no-repeat;
@@ -167,6 +169,10 @@ input[type=color].in{padding:5px;height:var(--tap)}
 .total.off b{color:var(--danger)}
 .lyr{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:11px;margin-bottom:9px}
 .lyr .in{background:var(--bg2)}
+.sugg{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 3px}
+.sugg:empty{display:none}
+.sugg .chip{min-height:34px;padding:6px 13px;background:var(--bg2);border:1px solid var(--line)}
+.lyr .sugg .chip{background:var(--bg3);border-color:transparent}
 .lyr .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
 .lyr .top .n{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);font-weight:700;flex:1}
 .orderhint{font-size:12.5px;color:var(--fg3);margin:-2px 0 10px}
@@ -475,24 +481,27 @@ function renderLightbox(){
   if(!S.lightbox) return;
   const {items,i}=S.lightbox;
   const it=items[i]; if(!it) { S.lightbox=null; return; }
+  const isPiece=S.lightbox.ctx==='piece';
   const d=document.createElement('div'); d.className='lightbox';
   d.innerHTML=
     '<div class="lbtop">'+
       '<button class="iconbtn" data-a="lb-close" aria-label="Close">&times;</button>'+
       '<div style="flex:1;text-align:center;font-size:13px;color:#b9b1a5">'+(i+1)+' / '+items.length+'</div>'+
+      (isPiece?'':
       '<button class="iconbtn" data-a="lb-edit" aria-label="Edit">&#9998;</button>'+
-      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>'+
+      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>')+
     '</div>'+
     '<div class="lbstage" data-a="lb-zoom">'+
       '<img data-img="'+it.imageId+'" alt="">'+
       '<button class="lbnav l" data-a="lb-prev" aria-label="Previous"></button>'+
       '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
     '</div>'+
+    (isPiece?'<div class="lbbot"><div style="color:#8b8377;font-size:13.5px">Pinch or double-tap to zoom</div></div>':
     '<div class="lbbot">'+
       ((it.tags&&it.tags.length)?'<div style="margin-bottom:6px">'+it.tags.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join('')+'</div>':'')+
       (has(it.note)?'<div class="note" style="color:#e8e2d8">'+esc(it.note)+'</div>':
         '<div style="color:#8b8377;font-size:13.5px">Tap the pencil to add tags or a note</div>')+
-    '</div>';
+    '</div>');
   document.body.appendChild(d);
   hydrate(d);
   attachLightboxGestures(d);
@@ -500,18 +509,34 @@ function renderLightbox(){
 function attachLightboxGestures(d){
   const stage=d.querySelector('.lbstage'), img=stage.querySelector('img');
   let z=1,ox=0,oy=0,sx=0,sy=0,drag=false,lastTap=0;
+  let pinchD=0,pinchZ=1;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const apply=()=>{ img.style.transform='translate('+ox+'px,'+oy+'px) scale('+z+')'; };
   stage.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){
+      pinchD=dist(e.touches); pinchZ=z; drag=false;
+      img.style.transition='none'; e.preventDefault(); return;
+    }
     if(e.touches.length!==1) return;
     const t=Date.now();
     if(t-lastTap<300){ z=z>1?1:2.5; ox=0; oy=0; apply(); lastTap=0; e.preventDefault(); return; }
     lastTap=t; drag=z>1; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy;
   },{passive:false});
   stage.addEventListener('touchmove',e=>{
+    if(e.touches.length===2&&pinchD){
+      z=Math.min(6,Math.max(1,pinchZ*dist(e.touches)/pinchD));
+      if(z===1){ ox=0; oy=0; }
+      apply(); e.preventDefault(); return;
+    }
     if(!drag||e.touches.length!==1) return;
     ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; apply(); e.preventDefault();
   },{passive:false});
-  stage.addEventListener('touchend',()=>{ drag=false; });
+  stage.addEventListener('touchend',e=>{
+    if(e.touches.length<2){ pinchD=0; img.style.transition=''; }
+    if(e.touches.length===1&&z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return; }
+    drag=false;
+    if(z<1.05){ z=1; ox=0; oy=0; apply(); }
+  });
   img.addEventListener('dblclick',()=>{ z=z>1?1:2.5; ox=0; oy=0; apply(); });
 }
 function lbStep(n){
@@ -1044,9 +1069,9 @@ function pieceForm(p){
   const b='<input type="hidden" data-f="id" value="'+esc(p.id||'')+'">'+
     fld('Name (optional)',txt('name',p.name,'Morning mug no.4'))+
     fld('Stage',sel('stage',STAGES,stageOf(p.stage)))+
-    fld('Clay body','<input class="in" type="text" data-f="clayName" list="claynames" value="'+esc(clay?clay.name:'')+'"'+
+    fld('Clay body','<input class="in" type="text" data-f="clayName" data-sugg="clay" value="'+esc(clay?clay.name:'')+'"'+
       ' placeholder="Standard 112 Buff" autocapitalize="words" autocomplete="off">'+
-      '<datalist id="claynames">'+S.clays.map(c=>'<option value="'+esc(c.name)+'">').join('')+'</datalist>')+
+      '<div class="sugg"></div>')+
     fld('Notes (optional)',area('notes',p.notes,'What you were going for. What went sideways.'));
   sheet(isNew?'New piece':'Edit piece',b,'piece-save');
 }
@@ -1112,22 +1137,35 @@ function pinForm(piece,pin,coords){
   sheet(isNew?'What\'s at this spot?':'Edit mark',b,'pin-save');
 }
 function layersHTML(){
-  return '<datalist id="matnames">'+
-    S.materials.map(m=>'<option value="'+esc(m.name)+'">').join('')+'</datalist>'+
-    draft.layers.map((l,i)=>
+  return draft.layers.map((l,i)=>
     '<div class="lyr">'+
       '<div class="top"><span class="n">'+(i===0?'first':(i===draft.layers.length-1?'last':'then'))+'</span>'+
       (draft.layers.length>1?'<button class="x" data-a="layer-del" data-i="'+i+'" aria-label="Remove layer">&times;</button>':'')+
       '</div>'+
-      '<input class="in" type="text" data-l="name" data-i="'+i+'" list="matnames" value="'+esc(l.name)+'"'+
-        ' placeholder="Glaze name" autocapitalize="words" autocomplete="off" style="margin-bottom:8px">'+
-      '<div class="two">'+
+      '<input class="in" type="text" data-l="name" data-i="'+i+'" data-sugg="mat" value="'+esc(l.name)+'"'+
+        ' placeholder="Glaze name" autocapitalize="words" autocomplete="off">'+
+      '<div class="sugg"></div>'+
+      '<div class="two" style="margin-top:8px">'+
         '<input class="in" type="text" inputmode="decimal" data-l="coats" data-i="'+i+'" value="'+esc(l.coats)+'" placeholder="Coats">'+
         '<select class="in" data-l="method" data-i="'+i+'">'+opts([{v:'',l:'Method'}].concat(METHODS),l.method)+'</select>'+
       '</div>'+
     '</div>').join('')+
     '<button class="btn sec" data-a="layer-add" style="margin-bottom:14px">+ Add a layer on top</button>';
 }
+/* suggestion chips under glaze/clay name inputs — tap to fill */
+function renderSugg(el){
+  const box=el.nextElementSibling;
+  if(!box||!box.classList.contains('sugg')) return;
+  const names=(el.dataset.sugg==='clay'?S.clays:S.materials).map(x=>x.name).filter(has);
+  const q=el.value.trim().toLowerCase();
+  const list=names.filter(n=>!q||n.toLowerCase().includes(q)).slice(0,8);
+  const exact=q&&list.length===1&&list[0].toLowerCase()===q;
+  box.innerHTML=exact?'':list.map(n=>
+    '<button type="button" class="chip" data-a="sugg-pick" data-v="'+esc(n)+'">'+esc(n)+'</button>').join('');
+}
+document.addEventListener('focusin',e=>{
+  if(e.target.dataset&&e.target.dataset.sugg) renderSugg(e.target);
+});
 function syncLayers(){
   const box=document.getElementById('layerbox'); if(!box) return;
   box.querySelectorAll('[data-l]').forEach(el=>{ draft.layers[+el.dataset.i][el.dataset.l]=el.value; });
@@ -1178,7 +1216,15 @@ document.addEventListener('click',async ev=>{
 
   /* --- pin placement takes priority --- */
   if(a==='stage-tap'){
-    if(!S.pinMode) return;
+    if(!S.pinMode){
+      /* not marking — open the photo full-screen with pinch zoom */
+      const p=S.route&&S.route.name==='piece'&&pieceById(S.route.id);
+      if(p&&(p.photos||[]).length){
+        S.lightbox={items:p.photos.map(id=>({imageId:id})),i:Math.min(S.photoIdx,p.photos.length-1),ctx:'piece'};
+        renderLightbox();
+      }
+      return;
+    }
     const box=el.getBoundingClientRect();
     const x=Math.min(1,Math.max(0,(ev.clientX-box.left)/box.width));
     const y=Math.min(1,Math.max(0,(ev.clientY-box.top)/box.height));
@@ -1189,6 +1235,15 @@ document.addEventListener('click',async ev=>{
   }
 
   switch(a){
+    case 'sugg-pick': {
+      const inp=el.parentElement.previousElementSibling;
+      if(inp&&inp.dataset.sugg){
+        inp.value=el.dataset.v;
+        if(inp.dataset.l) syncLayers();
+        el.parentElement.innerHTML='';
+      }
+      break;
+    }
     case 'tab': go(el.dataset.k); break;
     case 'back': back(); break;
     case 'sheet-close': draft=null; closeSheet(); break;
@@ -1339,6 +1394,7 @@ document.addEventListener('input',e=>{
     const nu=app.querySelector('[data-a="q"]');
     if(nu){ nu.focus(); try{ nu.setSelectionRange(pos,pos); }catch(_){} }
   }
+  if(el.dataset&&el.dataset.sugg) renderSugg(el);
   if(el.dataset&&el.dataset.r){ syncRecipe();
     const t=document.querySelector('#recipebox .total');
     if(t){ const tot=draft.recipe.reduce((s,r)=>s+(parseFloat(r.pct)||0),0);

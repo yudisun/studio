@@ -712,6 +712,8 @@ function renderLightbox(){
     if(!document.body.contains(crop)) return;
     const room=window.innerHeight-lbtopEl.offsetHeight-lbbotEl.offsetHeight-12;
     crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.5,room))+'px';
+    /* center the crop in the space between the bars */
+    crop.style.marginTop=Math.max(0,(room-crop.offsetHeight)/2)+'px';
   };
   if(window.__lbFit) window.removeEventListener('resize',window.__lbFit);
   window.__lbFit=fit;

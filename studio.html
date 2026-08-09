@@ -241,20 +241,45 @@ async function hydrate(root){
   }
 }
 const MAXPX=1800;
-/* heic2any (vendored, ~1.3MB) is only fetched the first time a HEIC
-   actually needs decoding — Safari and the iOS photo picker never do */
+/* libheif (vendored, ~1.4MB wasm bundle) is only fetched the first time
+   a HEIC actually needs decoding — Safari and the iOS photo picker never do */
 let heicLoading=null;
 function loadHeicDecoder(){
-  if(window.heic2any) return Promise.resolve();
-  if(!heicLoading) heicLoading=new Promise((res,rej)=>{
-    const s=document.createElement('script'); s.src='heic2any.min.js';
-    s.onload=res;
-    s.onerror=()=>{ heicLoading=null; rej(new Error('heic2any.min.js not found next to studio.html')); };
+  if(heicLoading) return heicLoading;
+  heicLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src='libheif-bundle.js';
+    s.onload=()=>{
+      try{ Promise.resolve(window.libheif()).then(res,rej); }
+      catch(e){ rej(e); }
+    };
+    s.onerror=()=>rej(new Error('libheif-bundle.js not found next to studio.html'));
     document.head.appendChild(s);
-  });
+  }).catch(e=>{ heicLoading=null; throw e; });
   return heicLoading;
 }
 const looksHeic=f=>/hei[cf]/i.test(f.type)||/\.hei[cf]$/i.test(f.name);
+/* sniff the ISO-BMFF brand — filenames and MIME types lie */
+async function sniffHeic(file){
+  try{
+    const b=new Uint8Array(await file.slice(4,12).arrayBuffer());
+    const s=String.fromCharCode.apply(null,b);
+    return s.slice(0,4)==='ftyp'&&/^(hei|hev|mif|msf)/.test(s.slice(4));
+  }catch(_){ return false; }
+}
+async function decodeHeic(file){
+  const heif=await loadHeicDecoder();
+  const imgs=new heif.HeifDecoder().decode(await file.arrayBuffer());
+  if(!imgs||!imgs.length) throw new Error('HEIC contained no decodable image');
+  const im=imgs[0]; // primary image; bursts/Live extras ignored
+  const w=im.get_width(),h=im.get_height();
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const g=c.getContext('2d');
+  const d=g.createImageData(w,h);
+  await new Promise((res,rej)=>im.display(d,ok=>ok?res():rej(new Error('HEIC decode failed'))));
+  imgs.forEach(i=>{ try{ i.free(); }catch(_){} });
+  g.putImageData(d,0,0);
+  return {src:c,w,h};
+}
 async function decodeImage(file){
   try{
     const bmp=await createImageBitmap(file);
@@ -265,12 +290,8 @@ async function decodeImage(file){
         im.onload=()=>res(im); im.onerror=rej; im.src=URL.createObjectURL(file); });
       return {src:i,w:i.naturalWidth,h:i.naturalHeight};
     }catch(e2){
-      if(!looksHeic(file)) throw e2;
-      await loadHeicDecoder();
-      let jpg=await heic2any({blob:file,toType:'image/jpeg',quality:.9});
-      if(Array.isArray(jpg)) jpg=jpg[0];
-      const bmp=await createImageBitmap(jpg);
-      return {src:bmp,w:bmp.width,h:bmp.height};
+      if(looksHeic(file)||await sniffHeic(file)) return decodeHeic(file);
+      throw e2;
     }
   }
 }

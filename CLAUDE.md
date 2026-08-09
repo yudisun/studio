@@ -5,7 +5,7 @@ A personal app Yudi uses **in the pottery studio, on an iPhone, with clay on the
 1. Reference a board of inspiration photos.
 2. Track glazes, clay bodies, and what went on which piece — including *where* on the piece.
 
-Everything lives in `studio.html`, plus one vendored file: `heic2any.min.js` (MIT, pinned 0.0.4), lazy-loaded only when a HEIC photo fails native decode — Yudi's photos come off an iPhone, and desktop Chrome can't decode HEIC. The two files must be served/hosted together. No build step, no CDN fetches at runtime, no other dependencies.
+Everything lives in `studio.html`, plus one vendored file: `libheif-bundle.js` (libheif-js 1.19.8, LGPL/MIT wasm bundle), lazy-loaded only when a photo fails native decode and byte-sniffs as HEIC — Yudi's photos come off an iPhone, and desktop Chrome can't decode HEIC. heic2any was tried first and failed on real iPhone HEICs (its embedded libheif is 2019-era, predating 10-bit HDR HEVC). Detection sniffs the ISO-BMFF `ftyp` brand, not the filename — iPhone HEICs sometimes arrive named `.jpeg`. The two files must be served/hosted together. No build step, no CDN fetches at runtime, no other dependencies.
 
 ---
 

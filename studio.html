@@ -124,10 +124,18 @@ a{color:var(--accent)}
 .strip .th[aria-current="true"]{border-color:var(--accent)}
 .strip .add{width:62px;height:62px;flex:none;border-radius:10px;border:1px dashed var(--line);
   display:grid;place-items:center;font-size:22px;color:var(--fg3)}
+.photobar{display:flex;gap:8px;align-items:center;padding:2px 0 4px}
+.pbtn{font-size:13px;font-weight:650;color:var(--fg2);background:var(--bg3);
+  border-radius:999px;padding:8px 14px;min-height:38px}
+.pbtn.dgr{color:var(--danger);background:none;border:1px solid var(--line)}
 .hintbar{background:var(--accent);color:var(--accent-fg);font-size:13.5px;font-weight:600;
   padding:10px 14px;border-radius:10px;margin:10px 0;display:flex;align-items:center;gap:10px}
 .hintbar button{margin-left:auto;font-weight:700;text-decoration:underline}
-.pinrow{display:flex;gap:11px;padding:12px 13px;align-items:flex-start;width:100%;text-align:left}
+.pinrow{display:flex;gap:11px;padding:12px 13px;align-items:flex-start;width:100%;text-align:left;
+  border-bottom:1px solid var(--line)}
+.card .pinrow:last-child{border-bottom:0}
+.pinrow.spot{padding-left:26px;background:var(--bg);align-items:center}
+.pinrow.spot .swatch{width:34px;height:34px}
 .pinrow .num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-fg);
   font-size:12px;font-weight:750;display:grid;place-items:center;flex:none;margin-top:1px}
 .pinrow .mt{display:block;font-size:12.5px;color:var(--fg3);margin-top:3px}
@@ -365,7 +373,7 @@ const S={
   q:'', matType:'All', inspoTag:'All',
   lightbox:null,        // {ids:[], i:0, ctx:'inspo'}
   photoIdx:0, pinMode:false, activePin:null, showPins:true,
-  recipeOpen:false
+  comboOpen:null, recipeOpen:false
 };
 
 async function loadAll(){
@@ -479,7 +487,7 @@ function attachStageZoom(stage){
 }
 function go(tab){ S.tab=tab; S.route=null; S.q=''; window.scrollTo(0,0); render(); }
 function open(name,id){
-  S.route={name,id}; S.photoIdx=0; S.pinMode=false; S.activePin=null; S.showPins=true;
+  S.route={name,id}; S.photoIdx=0; S.pinMode=false; S.activePin=null; S.showPins=true; S.comboOpen=null;
   window.scrollTo(0,0); render();
 }
 function back(){ S.route=null; render(); }
@@ -770,15 +778,17 @@ function viewPiece(p){
 
   let h='<button class="backbtn" data-a="back">&lsaquo; Pieces</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(pieceTitle(p))+'</h1>'+
-    '<div class="sub"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span></div></div>'+
+    '<div class="sub" style="margin-top:10px"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span></div></div>'+
     '<button class="iconbtn" data-a="piece-edit" data-id="'+p.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
 
+  const combos=pieceCombos(p);
+  const comboIndex=pn=>combos.findIndex(c=>c.key===comboKey(pn));
   if(photoId){
     h+='<div class="photostage'+(S.pinMode?' pinning':'')+'" data-a="stage-tap" data-photo="'+photoId+'">'+
        '<div class="zw">'+
        '<img data-img="'+photoId+'" alt="">'+
        (S.showPins?pins.map(pn=>{
-         const n=(p.pins||[]).indexOf(pn)+1;
+         const n=comboIndex(pn)+1; /* same combo = same number, everywhere */
          return '<button class="pin'+(S.activePin===pn.id?' on':'')+'" data-a="pin-open" data-pin="'+pn.id+'" '+
            'style="left:'+(pn.x*100)+'%;top:'+(pn.y*100)+'%">'+n+'</button>';
        }).join(''):'')+
@@ -795,21 +805,36 @@ function viewPiece(p){
   }
   h+='<div class="strip">'+photos.map((id,i)=>
       '<button class="th" data-a="photo-sel" data-i="'+i+'" data-img="'+id+'" aria-current="'+(i===idx)+'"></button>'
-    ).join('')+'<button class="add" data-a="photo-add" data-id="'+p.id+'" aria-label="Add photo">+</button>'+
-    (photoId?'<button class="add" data-a="photo-del" data-id="'+p.id+'" aria-label="Remove photo" style="color:var(--danger)">&minus;</button>':'')+
-    '</div>';
+    ).join('')+'<button class="add" data-a="photo-add" data-id="'+p.id+'" aria-label="Add photo">+</button></div>';
+  if(photoId&&photos.length){
+    h+='<div class="photobar">'+
+      (idx>0?'<button class="pbtn" data-a="photo-move" data-d="-1">&lsaquo; Move</button>':'')+
+      (idx<photos.length-1?'<button class="pbtn" data-a="photo-move" data-d="1">Move &rsaquo;</button>':'')+
+      '<span style="flex:1"></span>'+
+      '<button class="pbtn dgr" data-a="photo-del" data-id="'+p.id+'">Remove photo</button>'+
+      '</div>';
+  }
 
-  const all=p.pins||[];
-  if(all.length){
-    h+='<div class="sect">Glaze marks</div><div class="card">'+all.map((pn,i)=>{
-      const onThis=pn.photoId===photoId;
-      return '<button class="pinrow" data-a="pin-open" data-pin="'+pn.id+'"'+
-        (i<all.length-1?' style="border-bottom:1px solid var(--line)"':'')+'>'+
+  if(combos.length){
+    h+='<div class="sect">Glaze combos</div><div class="card">'+combos.map((c,i)=>{
+      const open=S.comboOpen===i;
+      const nspots=c.pins.length;
+      const photoSet=new Set(c.pins.map(x=>x.photoId));
+      return '<button class="pinrow" data-a="combo-toggle" data-i="'+i+'">'+
         '<span class="num">'+(i+1)+'</span><span class="grow" style="flex:1">'+
-        '<span class="layers">'+pinHTML(pn)+'</span>'+
-        (has(pn.note)?'<span class="mt" style="display:block;margin-top:3px">'+esc(pn.note)+'</span>':'')+
-        (onThis?'':'<span class="mt" style="display:block;margin-top:3px">on another photo</span>')+
-        '</span><span class="chev">&rsaquo;</span></button>';
+        '<span class="layers">'+layersLabelHTML(c.layers)+'</span>'+
+        '<span class="mt">'+nspots+' spot'+(nspots===1?'':'s')+' &middot; '+
+          photoSet.size+' photo'+(photoSet.size===1?'':'s')+'</span>'+
+        '</span><span class="chev">'+(open?'&#8964;':'&rsaquo;')+'</span></button>'+
+        (open?c.pins.map(pn=>{
+          const pi=photos.indexOf(pn.photoId)+1;
+          return '<button class="pinrow spot" data-a="pin-open" data-pin="'+pn.id+'">'+
+            '<span class="swatch" data-img="'+pn.photoId+'"></span>'+
+            '<span class="grow" style="flex:1"><span class="nm" style="font-size:14.5px;font-weight:500">'+
+            (has(pn.note)?esc(pn.note):'Photo '+pi)+'</span>'+
+            (has(pn.note)?'<span class="mt">Photo '+pi+'</span>':'')+
+            '</span><span class="chev">&rsaquo;</span></button>';
+        }).join(''):'');
     }).join('')+'</div>';
   }
 
@@ -822,15 +847,15 @@ function viewPiece(p){
   h+='<div style="height:14px"></div><button class="btn dgr" data-a="piece-del" data-id="'+p.id+'">Delete piece</button></div>';
   return h;
 }
-function pinHTML(pn){
-  const ls=pn.layers||[];
-  if(!ls.length) return '<span style="color:var(--fg3)">no layers noted</span>';
+function layersLabelHTML(ls){
+  if(!ls||!ls.length) return '<span style="color:var(--fg3)">no layers noted</span>';
   return ls.map(l=>{
     const m=matById(l.materialId);
     const bits=[has(l.coats)?l.coats:null,l.method].filter(has).join(' ');
     return '<span>'+esc(m?m.name:'unknown')+(bits?' <span style="color:var(--fg3);font-size:13px">('+esc(bits)+')</span>':'')+'</span>';
   }).join('<span class="sep">&rarr;</span>');
 }
+function pinHTML(pn){ return layersLabelHTML(pn.layers||[]); }
 
 /* ------------------------------------------------------------------
    BACKUP
@@ -1168,16 +1193,23 @@ async function inspoSave(){
 }
 
 /* ---------- pin sheet ---------- */
-/* distinct layer stacks already marked on this piece, for one-tap reuse */
+/* a combo is a distinct layer stack; pins with the same stack share an identity */
+function comboKey(pn){
+  return JSON.stringify((pn.layers||[]).map(l=>[l.materialId,l.coats||'',l.method||'']));
+}
 function pieceCombos(p){
-  const seen={},out=[];
+  const idx={},out=[];
   for(const pn of (p.pins||[])){
-    const ls=(pn.layers||[]).filter(l=>matById(l.materialId));
-    if(!ls.length) continue;
-    const key=JSON.stringify(ls.map(l=>[l.materialId,l.coats||'',l.method||'']));
-    if(seen[key]) continue; seen[key]=1;
-    out.push({label:ls.map(l=>matById(l.materialId).name).join(' → '),
-              layers:ls.map(l=>Object.assign({},l))});
+    const key=comboKey(pn);
+    if(idx[key]===undefined){
+      idx[key]=out.length;
+      out.push({key,
+        layers:(pn.layers||[]).map(l=>Object.assign({},l)),
+        label:(pn.layers||[]).length?
+          (pn.layers||[]).map(l=>(matById(l.materialId)||{name:'unknown'}).name).join(' → '):'no layers noted',
+        pins:[]});
+    }
+    out[idx[key]].pins.push(pn);
   }
   return out;
 }
@@ -1190,7 +1222,7 @@ function pinForm(piece,pin,coords){
            return {name:m?m.name:'',coats:l.coats||'',method:l.method||''};
          }), pinId:pin.id, pieceId:piece.id,
          photoId:pin.photoId, x:pin.x, y:pin.y, isNew:isNew,
-         combos:isNew?pieceCombos(piece):[]};
+         combos:isNew?pieceCombos(piece).filter(c=>c.layers.length):[]};
   if(!draft.layers.length) draft.layers=[{name:'',coats:'',method:''}];
   const comboHTML=draft.combos.length?
     '<div class="sect" style="margin-top:0">Already on this piece</div>'+
@@ -1408,6 +1440,15 @@ document.addEventListener('click',async ev=>{
       if(!confirm('Delete this piece and its marks?')) break;
       await dbDel('pieces',id); await loadAll(); back(); toast('Deleted'); break;
     case 'photo-sel': S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
+    case 'photo-move': {
+      const p=pieceById(S.route.id);
+      const photos=(p.photos||[]).slice();
+      const i=Math.min(S.photoIdx,photos.length-1), j=i+(+el.dataset.d);
+      if(j<0||j>=photos.length) break;
+      const t=photos[i]; photos[i]=photos[j]; photos[j]=t;
+      await dbPut('pieces',Object.assign({},p,{photos,updated:Date.now()}));
+      S.photoIdx=j; await loadAll(); render(); break;
+    }
     case 'photo-add': {
       const ids=await pickImages(true);
       if(!ids.length) break;
@@ -1426,6 +1467,7 @@ document.addEventListener('click',async ev=>{
       await dbDel('images',gone); urlCache.delete(gone);
       S.photoIdx=0; await loadAll(); render(); break;
     }
+    case 'combo-toggle': S.comboOpen=(S.comboOpen===+el.dataset.i?null:+el.dataset.i); render(); break;
     case 'pin-start': S.pinMode=true; S.showPins=true; render(); break;
     case 'pin-cancel': S.pinMode=false; render(); break;
     case 'pins-toggle': S.showPins=!S.showPins; render(); break;

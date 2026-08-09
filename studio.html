@@ -39,6 +39,8 @@ a{color:var(--accent)}
 .wrap{padding:0 16px}
 .iconbtn{width:42px;height:42px;border-radius:50%;background:var(--bg3);display:grid;place-items:center;font-size:19px;flex:none}
 .backbtn{display:flex;align-items:center;gap:4px;color:var(--accent);font-size:16px;padding:8px 16px 4px;min-height:40px}
+.editpill{background:var(--bg3);color:var(--fg);font-weight:750;font-size:12px;flex:none;
+  letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:12px 18px;min-height:42px}
 
 /* ---------- tabs ---------- */
 #tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
@@ -94,6 +96,9 @@ a{color:var(--accent)}
 .lightbox .lbbot{padding:12px 16px calc(18px + var(--safe-b));color:#e8e2d8;background:linear-gradient(#0000,#000c)}
 .lbnav{position:absolute;top:0;bottom:0;width:34%;z-index:1}
 .lbnav.l{left:0}.lbnav.r{right:0}
+.lightbox .iconbtn{background:rgba(255,255,255,.16);color:#fff}
+.lbbtn{background:rgba(255,255,255,.16);color:#fff;font-weight:750;font-size:12px;flex:none;
+  letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:11px 16px;min-height:40px}
 
 /* ---------- piece cards ---------- */
 .pcard{display:flex;gap:0;align-items:stretch}
@@ -627,8 +632,8 @@ function renderLightbox(){
     '<div class="lbtop">'+
       '<button class="iconbtn" data-a="lb-close" aria-label="Close">&times;</button>'+
       '<div style="flex:1;text-align:center;font-size:13px;color:#b9b1a5">'+(i+1)+' / '+items.length+'</div>'+
-      '<button class="iconbtn" data-a="lb-edit" aria-label="Edit">&#9998;</button>'+
-      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>'+
+      '<button class="lbbtn" data-a="lb-edit">Edit</button>'+
+      '<button class="lbbtn" data-a="lb-del" style="color:#ffb3a6">Delete</button>'+
     '</div>'+
     '<div class="lbstage" data-a="lb-zoom">'+
       '<img data-img="'+it.imageId+'" alt="">'+
@@ -638,7 +643,7 @@ function renderLightbox(){
     '<div class="lbbot">'+
       ((it.tags&&it.tags.length)?'<div style="margin-bottom:6px">'+it.tags.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join('')+'</div>':'')+
       (has(it.note)?'<div class="note" style="color:#e8e2d8">'+esc(it.note)+'</div>':
-        '<div style="color:#8b8377;font-size:13.5px">Tap the pencil to add tags or a note</div>')+
+        '<div style="color:#8b8377;font-size:13.5px">Tap Edit to add tags or a note</div>')+
     '</div>';
   document.body.appendChild(d);
   hydrate(d);
@@ -752,7 +757,7 @@ function viewMaterial(m){
   let h='<button class="backbtn" data-a="back">&lsaquo; Materials</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(m.name)+'</h1>'+
     '<div class="sub">'+esc(m.type||'Glaze')+(has(m.cone)?' &middot; cone '+esc(m.cone):'')+'</div></div>'+
-    '<button class="iconbtn" data-a="mat-edit" data-id="'+m.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+    '<button class="editpill" data-a="mat-edit" data-id="'+m.id+'">Edit</button></div><div class="wrap">';
   h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">'+
      '<span class="swatch" style="width:76px;height:76px;border-radius:14px;background-color:'+esc(m.colorHex||'#d8c9b2')+'"'+
      (m.imageId?' data-img="'+m.imageId+'"':'')+'></span>'+
@@ -794,7 +799,7 @@ function viewClay(c){
   let h='<button class="backbtn" data-a="back">&lsaquo; Materials</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(c.name)+'</h1>'+
     '<div class="sub">'+esc([c.type,c.coneRange].filter(has).join(' · '))+'</div></div>'+
-    '<button class="iconbtn" data-a="clay-edit" data-id="'+c.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+    '<button class="editpill" data-a="clay-edit" data-id="'+c.id+'">Edit</button></div><div class="wrap">';
   const rows=[['Supplier',c.supplier],['Type',c.type],['Cone range',c.coneRange],
     ['Raw color',c.colorRaw],['Fired color',c.colorFired]].filter(r=>has(r[1]));
   if(c.imageId) h+='<div class="photostage" style="margin-bottom:12px"><img data-img="'+c.imageId+'" alt=""></div>';
@@ -862,7 +867,7 @@ function viewPiece(p){
   let h='<button class="backbtn" data-a="back">&lsaquo; Pieces</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(pieceTitle(p))+'</h1>'+
     '<div class="sub" style="margin-top:10px"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span></div></div>'+
-    '<button class="iconbtn" data-a="piece-edit" data-id="'+p.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
+    '<button class="editpill" data-a="piece-edit" data-id="'+p.id+'">Edit</button></div><div class="wrap">';
 
   const combos=pieceCombos(p);
   const comboIndex=pn=>combos.findIndex(c=>c.key===comboKey(pn));

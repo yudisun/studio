@@ -1594,10 +1594,12 @@ document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.l)
 document.getElementById('modal').addEventListener('click',e=>{
   if(e.target.id==='modal'){ draft=null; closeSheet(); }
 });
-/* swipe from the left edge to go back — standalone mode has no browser gesture */
-let esX=null,esY=null,esT=0;
+/* swipe from the left edge to go back — standalone mode has no browser gesture.
+   Direction-locks after ~6px: horizontal claims the gesture (and suppresses the
+   scroll that made it feel janky); vertical hands it back to the scroller. */
+let esX=null,esY=null,esT=0,esLock=null;
 document.addEventListener('touchstart',e=>{
-  esX=null;
+  esX=null; esLock=null;
   if(e.touches.length!==1) return;
   const t=e.touches[0];
   if(t.clientX>28) return;                                  /* must start at the edge */
@@ -1605,12 +1607,24 @@ document.addEventListener('touchstart',e=>{
   if(S.lightbox||document.getElementById('modal').innerHTML) return;
   esX=t.clientX; esY=t.clientY; esT=Date.now();
 },{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(esX===null) return;
+  const t=e.touches[0];
+  const dx=t.clientX-esX, dy=t.clientY-esY;
+  if(esLock===null){
+    if(Math.abs(dx)<6&&Math.abs(dy)<6) return;               /* not decided yet */
+    if(Math.abs(dx)>Math.abs(dy)) esLock='h';
+    else { esX=null; return; }                                /* it's a scroll — bow out */
+  }
+  e.preventDefault();                                         /* ours: no scrolling */
+},{passive:false});
 document.addEventListener('touchend',e=>{
   if(esX===null) return;
   const t=e.changedTouches[0];
-  const dx=t.clientX-esX, dy=Math.abs(t.clientY-esY);
+  const dx=t.clientX-esX;
   esX=null;
-  if(dx>70&&dy<60&&Date.now()-esT<700) back();
+  if(esLock==='h'&&dx>70&&Date.now()-esT<700) back();
+  esLock=null;
 },{passive:true});
 /* hardware / gesture back */
 document.addEventListener('keydown',e=>{

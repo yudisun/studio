@@ -282,8 +282,15 @@ document.getElementById('filepick').addEventListener('change',async e=>{
   if(!r) return;
   if(!files.length){ r([]); return; }
   toast('Adding '+files.length+' photo'+(files.length>1?'s':'')+'…');
-  const ids=[];
-  for(const f of files){ try{ ids.push(await storeImageFile(f)); }catch(err){ console.error(err); } }
+  const ids=[]; const failed=[];
+  for(const f of files){
+    try{ ids.push(await storeImageFile(f)); }
+    catch(err){ failed.push(f.name); console.error('Could not read '+f.name+' ('+f.type+')',err); }
+  }
+  if(failed.length){
+    toast('Couldn’t read '+failed.length+' photo'+(failed.length>1?'s':'')+
+      (ids.length?' — added '+ids.length:'')+'. HEIC? Try JPEG or PNG.');
+  }
   r(ids);
 });
 

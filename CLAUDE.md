@@ -25,6 +25,8 @@ Everything lives in `studio.html`, plus one vendored file: `heic2any.min.js` (MI
 
 **Application order is the point of the glaze pins.** Yudi paints on pieces, so a spot on a pot is often *N* materials stacked. The pin stores an ordered `layers` array and the UI labels it `first → last` explicitly, because application order is the single thing that's impossible to reconstruct from a finished pot weeks later. Any redesign of the pin sheet must keep order unambiguous.
 
+**Pin layers are entered by name, not picked from a dropdown.** Typing a name that matches an existing material (case-insensitive) links to it; an unknown name auto-creates a bare `Glaze` record in Materials to enrich later. Layers still *store* `materialId` — the name field is UI only. This keeps the marking flow fast in the studio and lets the glaze library build itself as a side effect.
+
 ---
 
 ## Data model

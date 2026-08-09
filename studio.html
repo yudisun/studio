@@ -1062,9 +1062,13 @@ async function inspoSave(){
 function pinForm(piece,pin,coords){
   const isNew=!pin;
   pin=pin||{id:uid(),photoId:coords.photoId,x:coords.x,y:coords.y,layers:[],note:''};
-  draft={layers:(pin.layers||[]).map(l=>Object.assign({},l)), pinId:pin.id, pieceId:piece.id,
+  /* layers are edited by material NAME; ids are resolved (or created) on save */
+  draft={layers:(pin.layers||[]).map(l=>{
+           const m=matById(l.materialId);
+           return {name:m?m.name:'',coats:l.coats||'',method:l.method||''};
+         }), pinId:pin.id, pieceId:piece.id,
          photoId:pin.photoId, x:pin.x, y:pin.y, isNew:isNew};
-  if(!draft.layers.length) draft.layers=[{materialId:'',coats:'',method:''}];
+  if(!draft.layers.length) draft.layers=[{name:'',coats:'',method:''}];
   const b='<div class="orderhint">Layers in the order you applied them &mdash; first at the top.</div>'+
     '<div id="layerbox">'+layersHTML()+'</div>'+
     fld('Note',txt('note',pin.note,'Interior pool, rim break…'))+
@@ -1072,19 +1076,15 @@ function pinForm(piece,pin,coords){
   sheet(isNew?'What\'s at this spot?':'Edit mark',b,'pin-save');
 }
 function layersHTML(){
-  const matOpts=[{v:'',l:'Choose material…'}].concat(
-    S.materials.map(m=>({v:m.id,l:m.name+(m.type!=='Glaze'?' ('+m.type.toLowerCase()+')':'')})));
-  if(!S.materials.length){
-    return '<div class="lyr"><div style="color:var(--fg2);font-size:14px;line-height:1.5">'+
-      'No materials yet. Add a glaze first and it\'ll show up here.</div>'+
-      '<button class="btn sec" data-a="mat-new" style="margin-top:10px">Add a glaze</button></div>';
-  }
-  return draft.layers.map((l,i)=>
+  return '<datalist id="matnames">'+
+    S.materials.map(m=>'<option value="'+esc(m.name)+'">').join('')+'</datalist>'+
+    draft.layers.map((l,i)=>
     '<div class="lyr">'+
       '<div class="top"><span class="n">'+(i===0?'first':(i===draft.layers.length-1?'last':'then'))+'</span>'+
       (draft.layers.length>1?'<button class="x" data-a="layer-del" data-i="'+i+'" aria-label="Remove layer">&times;</button>':'')+
       '</div>'+
-      '<select class="in" data-l="materialId" data-i="'+i+'" style="margin-bottom:8px">'+opts(matOpts,l.materialId)+'</select>'+
+      '<input class="in" type="text" data-l="name" data-i="'+i+'" list="matnames" value="'+esc(l.name)+'"'+
+        ' placeholder="Glaze name" autocapitalize="words" autocomplete="off" style="margin-bottom:8px">'+
       '<div class="two">'+
         '<input class="in" type="text" inputmode="decimal" data-l="coats" data-i="'+i+'" value="'+esc(l.coats)+'" placeholder="Coats">'+
         '<select class="in" data-l="method" data-i="'+i+'">'+opts([{v:'',l:'Method'}].concat(METHODS),l.method)+'</select>'+
@@ -1103,14 +1103,28 @@ async function pinSave(){
   syncLayers();
   const v=readForm(document.getElementById('modal'));
   const p=pieceById(draft.pieceId); if(!p) return;
-  const layers=draft.layers.filter(l=>has(l.materialId));
-  if(!layers.length){ toast('Pick at least one material'); return; }
+  const entries=draft.layers.filter(l=>has(l.name));
+  if(!entries.length){ toast('Name at least one glaze'); return; }
+  /* resolve names to materials; unknown names become new Glaze records */
+  const createdHere={}; const createdNames=[];
+  const layers=[];
+  for(const l of entries){
+    const nm=l.name.trim(), key=nm.toLowerCase();
+    let m=S.materials.find(x=>(x.name||'').trim().toLowerCase()===key)||createdHere[key];
+    if(!m){
+      m={id:uid(),name:nm,type:'Glaze',updated:Date.now()};
+      createdHere[key]=m; createdNames.push(nm);
+      await dbPut('materials',m);
+    }
+    layers.push({materialId:m.id,coats:l.coats,method:l.method});
+  }
   const pins=(p.pins||[]).slice();
   const rec={id:draft.pinId,photoId:draft.photoId,x:draft.x,y:draft.y,layers,note:v.note||''};
   const at=pins.findIndex(x=>x.id===draft.pinId);
   if(at>=0) pins[at]=rec; else pins.push(rec);
   await dbPut('pieces',Object.assign({},p,{pins,updated:Date.now()}));
-  S.activePin=rec.id; draft=null; closeSheet(); await loadAll(); render(); toast('Marked');
+  S.activePin=rec.id; draft=null; closeSheet(); await loadAll(); render();
+  toast(createdNames.length?'Marked — added '+createdNames.join(', ')+' to Materials':'Marked');
 }
 async function pinDelete(){
   const p=pieceById(draft.pieceId); if(!p) return;
@@ -1263,9 +1277,9 @@ document.addEventListener('click',async ev=>{
     }
     case 'pin-save': await pinSave(); break;
     case 'pin-del': if(confirm('Delete this mark?')) await pinDelete(); break;
-    case 'layer-add': syncLayers(); draft.layers.push({materialId:'',coats:'',method:''}); redrawLayers(); break;
+    case 'layer-add': syncLayers(); draft.layers.push({name:'',coats:'',method:''}); redrawLayers(); break;
     case 'layer-del': syncLayers(); draft.layers.splice(+el.dataset.i,1);
-      if(!draft.layers.length) draft.layers=[{materialId:'',coats:'',method:''}]; redrawLayers(); break;
+      if(!draft.layers.length) draft.layers=[{name:'',coats:'',method:''}]; redrawLayers(); break;
 
     /* backup */
     case 'export': await doExport(); break;

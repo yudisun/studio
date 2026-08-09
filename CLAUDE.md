@@ -45,7 +45,7 @@ inspo      { id, imageId, tags:[string], note, added }
 images     { id, blob, w, h }
 ```
 
-`Pin.x` / `Pin.y` are **normalized 0–1** against the displayed photo. This only works because the photo renders at `width:100%; height:auto`, so the element box equals the image box and no object-fit math is needed. If you change the photo layout to use `object-fit`, you must fix the coordinate math in the `stage-tap` handler.
+`Pin.x` / `Pin.y` are **normalized 0–1** against the displayed photo. The `stage-tap` handler measures the IMG's `getBoundingClientRect()` (not the stage), so coordinates stay correct even while the photo is pinch-zoomed. The piece photo supports in-place pinch zoom (`attachStageZoom`, transform on `.zw` wrapper); pins counter-scale via `--pz` so markers stay 22px at any zoom, and their 48px tap pad (`.pin::after`) stays constant too. If you change the photo layout to use `object-fit`, you must fix the coordinate math.
 
 `STAGES` are `Thrown → Bisque → Glazed → Fired`, each with a color in `STAGE_COLOR`. The ladder used to include Idea/Trimmed/Drying; `STAGE_ALIAS` maps those (from old data or backups) to `Thrown` — display via `stageOf()`, never raw `p.stage`.
 
@@ -65,7 +65,8 @@ The Backup tab has a **Load sample data** button that generates fake glazes, cla
 
 - **Hosting.** Needs a stable HTTPS origin for Add to Home Screen to behave and for a service worker. Currently there's no service worker; offline relies on iOS caching the page, which is not good enough. Adding a real SW means going multi-file — that's fine, the single-file constraint was for the prototype phase only.
 - **Style direction landed 2026-08-09: Blank Street Coffee's app.** Minimalist, clean, light mode. Warm cream page (#f6efe6), white cards with 20–24px radii, beige tonal tiles/inputs (#f0e4d2), dark warm-brown type (#46372a), one forest-green accent (#2e5c44). Primary actions are full-width green pills with UPPERCASE letter-spaced labels; secondary actions are beige pills; icon buttons are beige circles. System font, 48px minimum tap targets. The lightbox stays black — it's a photo viewer. Stage colors are muted (terracotta/ochre/steel/green) to sit on cream. Iterate within this language; don't reintroduce dark mode without asking.
-- ~~Pinch-zoom~~ Done 2026-08-09: the lightbox has real two-finger pinch (hand-rolled, since the viewport is locked with `user-scalable=no`) plus the double-tap-to-2.5x fallback. Tapping a piece photo outside pin mode opens it in the lightbox (`ctx:'piece'` — viewer only, no inspo edit/delete buttons).
+- ~~Pinch-zoom~~ Done 2026-08-09: the piece photo pinch-zooms **in place** (Yudi explicitly did not want an overlay), and the inspo lightbox has real two-finger pinch plus double-tap. Both hand-rolled since the viewport is locked with `user-scalable=no`.
+- New pins offer the piece's existing layer stacks as one-tap "combo" chips (`pieceCombos`) — marking the same combo on a second photo of the same piece is the common case.
 - No reordering of pin layers after creation — you delete and re-add.
 - No way to duplicate a piece or a glaze combo, which will probably get annoying.
 

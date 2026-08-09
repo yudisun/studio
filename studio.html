@@ -107,12 +107,14 @@ a{color:var(--accent)}
 
 /* ---------- photo + pins ---------- */
 .photostage{position:relative;background:var(--bg3);border-radius:var(--r);overflow:hidden;
-  border:1px solid var(--line);line-height:0}
+  border:1px solid var(--line);line-height:0;touch-action:pan-y}
+.photostage .zw{position:relative;transform-origin:0 0;will-change:transform}
 .photostage img{width:100%;display:block}
 .photostage.pinning{cursor:crosshair;box-shadow:0 0 0 2px var(--accent)}
 .pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;
   background:var(--accent);color:var(--accent-fg);font-size:11px;font-weight:750;
-  display:grid;place-items:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 1px 5px rgba(0,0,0,.4);line-height:1}
+  display:grid;place-items:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 1px 5px rgba(0,0,0,.4);line-height:1;
+  transform:scale(var(--pz,1))} /* counter-scale so markers stay 22px while the photo zooms */
 .pin.on{outline:2px solid #fff}
 .pin::after{content:"";position:absolute;inset:-13px} /* 48px tap target behind a 22px marker */
 .strip{display:flex;gap:7px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
@@ -169,10 +171,12 @@ input[type=color].in{padding:5px;height:var(--tap)}
 .total.off b{color:var(--danger)}
 .lyr{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:11px;margin-bottom:9px}
 .lyr .in{background:var(--bg2)}
-.sugg{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 3px}
+.sugg{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 3px}
 .sugg:empty{display:none}
-.sugg .chip{min-height:34px;padding:6px 13px;background:var(--bg2);border:1px solid var(--line)}
-.lyr .sugg .chip{background:var(--bg3);border-color:transparent}
+.combobar{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 16px}
+.sugg .chip,.combobar .chip{min-height:40px;padding:10px 15px;font-size:14px;
+  background:var(--bg3);border:1px solid var(--line);color:var(--fg);font-weight:550}
+.lyr .sugg .chip{background:var(--bg2)}
 .lyr .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
 .lyr .top .n{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);font-weight:700;flex:1}
 .orderhint{font-size:12.5px;color:var(--fg3);margin:-2px 0 10px}
@@ -424,8 +428,53 @@ function render(){
   app.innerHTML=html;
   renderTabs();
   renderLightbox();
+  const zst=app.querySelector('.photostage .zw');
+  if(zst) attachStageZoom(zst.parentElement);
   hydrate(app);
   hydrate(document.getElementById('modal'));
+}
+/* in-place pinch zoom on the piece photo — pins counter-scale via --pz */
+function attachStageZoom(stage){
+  const zw=stage.querySelector('.zw'); if(!zw) return;
+  let z=1,ox=0,oy=0,d0=0,z0=1,m0=null,o0=null,r0=null,drag=false,sx=0,sy=0;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const mid=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
+  const apply=()=>{
+    zw.style.transform=z===1?'':'translate('+ox+'px,'+oy+'px) scale('+z+')';
+    stage.style.setProperty('--pz',1/z);
+  };
+  stage.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){
+      d0=dist(e.touches); z0=z; m0=mid(e.touches); o0={x:ox,y:oy};
+      r0=stage.getBoundingClientRect(); drag=false;
+      e.preventDefault(); return;
+    }
+    if(e.touches.length===1&&z>1){
+      drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy;
+    }
+  },{passive:false});
+  stage.addEventListener('touchmove',e=>{
+    if(e.touches.length===2&&d0){
+      const m=mid(e.touches);
+      z=Math.min(5,Math.max(1,z0*dist(e.touches)/d0));
+      /* keep the content under the fingers' midpoint */
+      ox=(m.x-r0.left)-(m0.x-r0.left-o0.x)*(z/z0);
+      oy=(m.y-r0.top)-(m0.y-r0.top-o0.y)*(z/z0);
+      if(z===1){ ox=0; oy=0; }
+      apply(); e.preventDefault(); return;
+    }
+    if(drag&&e.touches.length===1){
+      ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy;
+      apply(); e.preventDefault();
+    }
+  },{passive:false});
+  stage.addEventListener('touchend',e=>{
+    if(e.touches.length<2) d0=0;
+    if(e.touches.length===1&&z>1){
+      drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return;
+    }
+    if(!e.touches.length){ drag=false; if(z<1.05){ z=1; ox=0; oy=0; apply(); } }
+  });
 }
 function go(tab){ S.tab=tab; S.route=null; S.q=''; window.scrollTo(0,0); render(); }
 function open(name,id){
@@ -481,27 +530,24 @@ function renderLightbox(){
   if(!S.lightbox) return;
   const {items,i}=S.lightbox;
   const it=items[i]; if(!it) { S.lightbox=null; return; }
-  const isPiece=S.lightbox.ctx==='piece';
   const d=document.createElement('div'); d.className='lightbox';
   d.innerHTML=
     '<div class="lbtop">'+
       '<button class="iconbtn" data-a="lb-close" aria-label="Close">&times;</button>'+
       '<div style="flex:1;text-align:center;font-size:13px;color:#b9b1a5">'+(i+1)+' / '+items.length+'</div>'+
-      (isPiece?'':
       '<button class="iconbtn" data-a="lb-edit" aria-label="Edit">&#9998;</button>'+
-      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>')+
+      '<button class="iconbtn" data-a="lb-del" aria-label="Delete">&#128465;</button>'+
     '</div>'+
     '<div class="lbstage" data-a="lb-zoom">'+
       '<img data-img="'+it.imageId+'" alt="">'+
       '<button class="lbnav l" data-a="lb-prev" aria-label="Previous"></button>'+
       '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
     '</div>'+
-    (isPiece?'<div class="lbbot"><div style="color:#8b8377;font-size:13.5px">Pinch or double-tap to zoom</div></div>':
     '<div class="lbbot">'+
       ((it.tags&&it.tags.length)?'<div style="margin-bottom:6px">'+it.tags.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join('')+'</div>':'')+
       (has(it.note)?'<div class="note" style="color:#e8e2d8">'+esc(it.note)+'</div>':
         '<div style="color:#8b8377;font-size:13.5px">Tap the pencil to add tags or a note</div>')+
-    '</div>');
+    '</div>';
   document.body.appendChild(d);
   hydrate(d);
   attachLightboxGestures(d);
@@ -728,13 +774,14 @@ function viewPiece(p){
 
   if(photoId){
     h+='<div class="photostage'+(S.pinMode?' pinning':'')+'" data-a="stage-tap" data-photo="'+photoId+'">'+
+       '<div class="zw">'+
        '<img data-img="'+photoId+'" alt="">'+
        (S.showPins?pins.map(pn=>{
          const n=(p.pins||[]).indexOf(pn)+1;
          return '<button class="pin'+(S.activePin===pn.id?' on':'')+'" data-a="pin-open" data-pin="'+pn.id+'" '+
            'style="left:'+(pn.x*100)+'%;top:'+(pn.y*100)+'%">'+n+'</button>';
        }).join(''):'')+
-       '</div>';
+       '</div></div>';
     if(S.pinMode){
       h+='<div class="hintbar"><span>Tap the spot on the photo</span>'+
          '<button data-a="pin-cancel">Cancel</button></div>';
@@ -1120,6 +1167,19 @@ async function inspoSave(){
 }
 
 /* ---------- pin sheet ---------- */
+/* distinct layer stacks already marked on this piece, for one-tap reuse */
+function pieceCombos(p){
+  const seen={},out=[];
+  for(const pn of (p.pins||[])){
+    const ls=(pn.layers||[]).filter(l=>matById(l.materialId));
+    if(!ls.length) continue;
+    const key=JSON.stringify(ls.map(l=>[l.materialId,l.coats||'',l.method||'']));
+    if(seen[key]) continue; seen[key]=1;
+    out.push({label:ls.map(l=>matById(l.materialId).name).join(' → '),
+              layers:ls.map(l=>Object.assign({},l))});
+  }
+  return out;
+}
 function pinForm(piece,pin,coords){
   const isNew=!pin;
   pin=pin||{id:uid(),photoId:coords.photoId,x:coords.x,y:coords.y,layers:[],note:''};
@@ -1128,9 +1188,16 @@ function pinForm(piece,pin,coords){
            const m=matById(l.materialId);
            return {name:m?m.name:'',coats:l.coats||'',method:l.method||''};
          }), pinId:pin.id, pieceId:piece.id,
-         photoId:pin.photoId, x:pin.x, y:pin.y, isNew:isNew};
+         photoId:pin.photoId, x:pin.x, y:pin.y, isNew:isNew,
+         combos:isNew?pieceCombos(piece):[]};
   if(!draft.layers.length) draft.layers=[{name:'',coats:'',method:''}];
-  const b='<div class="orderhint">Layers in the order you applied them &mdash; first at the top.</div>'+
+  const comboHTML=draft.combos.length?
+    '<div class="orderhint" style="margin-bottom:6px">Already on this piece &mdash; tap to reuse</div>'+
+    '<div class="combobar">'+draft.combos.map((c,i)=>
+      '<button type="button" class="chip" data-a="combo-pick" data-i="'+i+'">'+esc(c.label)+'</button>'
+    ).join('')+'</div>':'';
+  const b=comboHTML+
+    '<div class="orderhint">Layers in the order you applied them &mdash; first at the top.</div>'+
     '<div id="layerbox">'+layersHTML()+'</div>'+
     fld('Note',txt('note',pin.note,'Interior pool, rim break…'))+
     (isNew?'':'<button class="btn dgr" data-a="pin-del">Delete this mark</button>');
@@ -1216,16 +1283,10 @@ document.addEventListener('click',async ev=>{
 
   /* --- pin placement takes priority --- */
   if(a==='stage-tap'){
-    if(!S.pinMode){
-      /* not marking — open the photo full-screen with pinch zoom */
-      const p=S.route&&S.route.name==='piece'&&pieceById(S.route.id);
-      if(p&&(p.photos||[]).length){
-        S.lightbox={items:p.photos.map(id=>({imageId:id})),i:Math.min(S.photoIdx,p.photos.length-1),ctx:'piece'};
-        renderLightbox();
-      }
-      return;
-    }
-    const box=el.getBoundingClientRect();
+    if(!S.pinMode) return;
+    /* measure the IMG, not the stage — correct even while pinch-zoomed */
+    const img=el.querySelector('img');
+    const box=(img||el).getBoundingClientRect();
     const x=Math.min(1,Math.max(0,(ev.clientX-box.left)/box.width));
     const y=Math.min(1,Math.max(0,(ev.clientY-box.top)/box.height));
     S.pinMode=false;
@@ -1235,6 +1296,12 @@ document.addEventListener('click',async ev=>{
   }
 
   switch(a){
+    case 'combo-pick': {
+      const c=draft&&draft.combos&&draft.combos[+el.dataset.i]; if(!c) break;
+      draft.layers=c.layers.map(l=>({name:(matById(l.materialId)||{}).name||'',
+        coats:l.coats||'',method:l.method||''}));
+      redrawLayers(); break;
+    }
     case 'sugg-pick': {
       const inp=el.parentElement.previousElementSibling;
       if(inp&&inp.dataset.sugg){

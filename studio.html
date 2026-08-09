@@ -92,9 +92,13 @@ a{color:var(--accent)}
 .lightbox .lbtop{position:absolute;top:0;left:0;right:0;z-index:2;
   display:flex;align-items:center;gap:8px;padding:calc(var(--safe-t) + 10px) 12px 14px;
   color:#fff;background:linear-gradient(#000c,#0000)}
-/* the stage fills the screen and the bars overlay it, so the photo centers for real */
+/* the stage fills the screen so the photo centers for real; the image itself is
+   capped symmetrically so tall photos letterbox clear of the bars instead of
+   running under them (percentage max-height resolves against the wrong box here) */
 .lightbox .lbstage{position:absolute;inset:0;overflow:hidden;display:grid;place-items:center;touch-action:none}
-.lightbox .lbstage img{max-width:100%;max-height:100%;transform-origin:center;transition:transform .18s}
+.lightbox .lbstage img{max-width:100%;
+  max-height:calc(100vh - (max(var(--safe-t),var(--safe-b)) + 132px)*2);
+  transform-origin:center;transition:transform .18s}
 .lightbox .lbbot{position:absolute;bottom:0;left:0;right:0;z-index:2;
   padding:26px 16px calc(18px + var(--safe-b));color:#e8e2d8;background:linear-gradient(#0000,#000d)}
 .lbnote{width:100%;background:rgba(255,255,255,.13);border:0;border-radius:12px;

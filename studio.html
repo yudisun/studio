@@ -297,6 +297,52 @@ async function hydrate(root){
   }
 }
 const MAXPX=1800;
+/* EXIF DateTimeOriginal, parsed from the original file — the canvas re-encode
+   strips metadata, so this is the only chance to grab the capture date */
+const importTaken={}; /* imageId -> capture timestamp for this session's imports */
+async function exifDate(file){
+  try{
+    const v=new DataView(await file.slice(0,262144).arrayBuffer());
+    if(v.getUint16(0)!==0xFFD8) return null; /* not a JPEG */
+    let o=2;
+    while(o+4<v.byteLength){
+      const marker=v.getUint16(o);
+      if((marker&0xFF00)!==0xFF00) return null;
+      const size=v.getUint16(o+2);
+      if(marker===0xFFE1&&v.getUint32(o+4)===0x45786966) return parseTiffDate(v,o+10);
+      o+=2+size;
+    }
+  }catch(_){}
+  return null;
+}
+function parseTiffDate(v,base){
+  try{
+    const little=v.getUint16(base)===0x4949;
+    const g16=x=>v.getUint16(base+x,little), g32=x=>v.getUint32(base+x,little);
+    if(g16(2)!==42) return null;
+    const findTag=(off,want)=>{
+      const n=g16(off);
+      for(let i=0;i<n;i++){ const e=off+2+i*12; if(g16(e)===want) return e; }
+      return -1;
+    };
+    const ascii=e=>{
+      const cnt=g32(e+4), voff=cnt>4?g32(e+8):e+8;
+      let s='';
+      for(let i=0;i<cnt-1;i++) s+=String.fromCharCode(v.getUint8(base+voff+i));
+      return s;
+    };
+    const ifd0=g32(4);
+    let e=-1;
+    const exifPtr=findTag(ifd0,0x8769);
+    if(exifPtr>=0) e=findTag(g32(exifPtr+8),0x9003); /* DateTimeOriginal */
+    if(e<0) e=findTag(ifd0,0x0132);                  /* fallback: DateTime */
+    if(e<0) return null;
+    const m=/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(ascii(e));
+    if(!m) return null;
+    const t=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]).getTime();
+    return isFinite(t)&&t>0?t:null;
+  }catch(_){ return null; }
+}
 /* libheif (vendored, ~1.4MB wasm bundle) is only fetched the first time
    a HEIC actually needs decoding — Safari and the iOS photo picker never do */
 let heicLoading=null;
@@ -352,6 +398,7 @@ async function decodeImage(file){
   }
 }
 async function storeImageFile(file){
+  const taken=await exifDate(file);
   const {src,w,h}=await decodeImage(file);
   const k=Math.min(1,MAXPX/Math.max(w,h));
   const cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
@@ -359,7 +406,8 @@ async function storeImageFile(file){
   c.getContext('2d').drawImage(src,0,0,cw,ch);
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
   const id=uid();
-  await dbPut('images',{id,blob,w:cw,h:ch});
+  await dbPut('images',{id,blob,w:cw,h:ch,taken:taken||null});
+  importTaken[id]=taken||null;
   return id;
 }
 /* draws a synthetic image — used by "load sample data" */
@@ -434,6 +482,12 @@ const has=v=>v!=null&&String(v).trim()!=='';
 /* name matching for glazes/clays: trim, collapse whitespace, ignore case */
 const normName=s=>String(s==null?'':s).trim().replace(/\s+/g,' ');
 const nameKey=s=>normName(s).toLowerCase();
+function fmtStamp(ms){
+  if(!ms) return '';
+  return new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+}
+/* a piece's date: earliest photo capture date, else when it was added */
+const pieceDate=p=>p.taken||p.created||p.updated||null;
 function toast(msg){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
   const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
@@ -927,17 +981,16 @@ function viewPieces(){
 }
 function pieceCard(p){
   const clay=clayById(p.clayId);
-  const stage=stageOf(p.stage);
-  const col=STAGE_COLOR[stage]||'#8a7a66';
   const glazes=[...new Set((p.pins||[]).flatMap(pn=>(pn.layers||[]).map(l=>{
     const m=matById(l.materialId); return m&&m.name;
   })).filter(Boolean))];
+  const dateStr=fmtStamp(pieceDate(p));
   return '<button class="card pcard" data-a="open-piece" data-id="'+p.id+'" style="display:flex;width:100%;text-align:left">'+
     '<span class="ph"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
     '<span class="bd"><h3>'+esc(pieceTitle(p))+'</h3>'+
     (has(p.name)&&clay?'<span class="mt" style="display:block">'+esc(clay.name)+'</span>':'')+
     (glazes.length?'<span class="mt" style="display:block;margin-top:2px">'+esc(glazes.join(' · '))+'</span>':'')+
-    '<span class="stage" style="color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span>'+
+    (dateStr?'<span class="mt" style="display:block;margin-top:2px">'+esc(dateStr)+'</span>':'')+
     '</span></button>';
 }
 function viewPiece(p){
@@ -948,11 +1001,11 @@ function viewPiece(p){
   const pins=(p.pins||[]).filter(x=>x.photoId===photoId);
   const clay=clayById(p.clayId);
   const stage=stageOf(p.stage);
-  const col=STAGE_COLOR[stage]||'#8a7a66';
+  const dateStr=fmtStamp(pieceDate(p));
 
   let h='<button class="backbtn" data-a="back">&lsaquo; Pieces</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(pieceTitle(p))+'</h1>'+
-    '<div class="sub" style="margin-top:10px"><span class="stage" style="margin:0;color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span></div></div>'+
+    (dateStr?'<div class="sub" style="margin-top:6px">'+esc(dateStr)+'</div>':'')+'</div>'+
     '<button class="editpill" data-a="piece-edit" data-id="'+p.id+'">Edit</button></div><div class="wrap">';
 
   const combos=pieceCombos(p);
@@ -1011,7 +1064,8 @@ function viewPiece(p){
   }
 
   const rows=[
-    ['Clay body',clay?clay.name:'']
+    ['Clay body',clay?clay.name:''],
+    ['Stage',stage]
   ].filter(r=>has(r[1]));
   if(rows.length) h+='<div class="sect">Details</div><div class="card"><dl class="infogrid">'+
     rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')+'</dl></div>';
@@ -1360,7 +1414,8 @@ async function pieceSave(){
   const rec=Object.assign({},prev,{
     id,name:v.name||'',stage:v.stage,clayId,
     notes:v.notes,
-    photos:prev.photos||[], pins:prev.pins||[], updated:Date.now()
+    photos:prev.photos||[], pins:prev.pins||[],
+    created:prev.created||Date.now(), updated:Date.now()
   });
   await dbPut('pieces',rec);
   const wasNew=!prev.id;
@@ -1612,7 +1667,9 @@ document.addEventListener('click',async ev=>{
       const ids=await pickImages(true);
       if(!ids.length) break;
       const pid=uid();
-      await dbPut('pieces',{id:pid,name:'',clayId:'',stage:'Thrown',notes:'',photos:ids,pins:[],updated:Date.now()});
+      const takens=ids.map(x=>importTaken[x]).filter(Boolean);
+      await dbPut('pieces',{id:pid,name:'',clayId:'',stage:'Thrown',notes:'',photos:ids,pins:[],
+        created:Date.now(),taken:takens.length?Math.min.apply(null,takens):null,updated:Date.now()});
       await loadAll(); open('piece',pid); toast('Piece added');
       break;
     }
@@ -1629,7 +1686,9 @@ document.addEventListener('click',async ev=>{
       const ids=await pickImages(true);
       if(!ids.length) break;
       const p=pieceById(id);
-      await dbPut('pieces',Object.assign({},p,{photos:(p.photos||[]).concat(ids),updated:Date.now()}));
+      const takens=[p.taken].concat(ids.map(x=>importTaken[x])).filter(Boolean);
+      await dbPut('pieces',Object.assign({},p,{photos:(p.photos||[]).concat(ids),
+        taken:takens.length?Math.min.apply(null,takens):null,updated:Date.now()}));
       await loadAll(); S.photoIdx=((pieceById(id).photos||[]).length-ids.length); render(); break;
     }
     case 'photo-del': {

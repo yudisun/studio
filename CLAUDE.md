@@ -36,10 +36,14 @@ materials  { id, name, type, cone, colorHex, imageId, brand, code,
              method, coats, foodSafe, notes, recipe:[{material,pct}], updated }
 clays      { id, name, type, supplier, coneRange, colorRaw, colorFired,
              colorFiredHex, imageId, notes, updated }
-pieces     { id, name, clayId, stage, notes,
+pieces     { id, name, clayId, stage, notes, created, taken,
              photos:[imageId], pins:[Pin], updated }
-           (name/notes optional; legacy records may also carry
-            form, dateStarted, firing — kept but unused)
+           (name/notes optional; created = when added; taken =
+            earliest EXIF capture date across its photos, parsed at
+            import time since the canvas re-encode strips metadata —
+            see exifDate(). Display date = taken || created || updated
+            via pieceDate(). Legacy records may also carry form,
+            dateStarted, firing — kept but unused)
 Pin        { id, photoId, x, y, note, layers:[{materialId, coats, method}] }
 inspo      { id, imageId, tags:[string], note, added }
 images     { id, blob, w, h }
@@ -49,7 +53,7 @@ images     { id, blob, w, h }
 
 Photo strip: the selected thumb carries an ✕ badge to remove; hold-and-drag reorders (`attachStripDrag`, iOS-Photos style; first photo is the piece's cover). A left-edge swipe (>70px, mostly horizontal) goes back from detail views — standalone mode has no browser back gesture.
 
-`STAGES` are `Thrown → Bisque → Glazed → Fired`, each with a color in `STAGE_COLOR`. The ladder used to include Idea/Trimmed/Drying; `STAGE_ALIAS` maps those (from old data or backups) to `Thrown` — display via `stageOf()`, never raw `p.stage`.
+`STAGES` are `Thrown → Bisque → Glazed → Fired`. The ladder used to include Idea/Trimmed/Drying; `STAGE_ALIAS` maps those (from old data or backups) to `Thrown` — display via `stageOf()`, never raw `p.stage`. **Stage is deliberately quiet (Yudi 2026-08-09):** no chips on cards or headers — it lives as a row in the piece's Details card and in the edit sheet. The header/card slot shows the piece's date instead.
 
 Images are resized to 1800px on the long edge at JPEG 0.82 on import. Storage adds up fast on a phone; don't raise this without a reason.
 

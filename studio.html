@@ -675,12 +675,14 @@ function pieceCard(p){
   const clay=clayById(p.clayId);
   const stage=stageOf(p.stage);
   const col=STAGE_COLOR[stage]||'#8a7a66';
-  const npins=(p.pins||[]).length;
+  const glazes=[...new Set((p.pins||[]).flatMap(pn=>(pn.layers||[]).map(l=>{
+    const m=matById(l.materialId); return m&&m.name;
+  })).filter(Boolean))];
   return '<button class="card pcard" data-a="open-piece" data-id="'+p.id+'" style="display:flex;width:100%;text-align:left">'+
     '<span class="ph"'+(p.photos&&p.photos[0]?' data-img="'+p.photos[0]+'"':'')+'></span>'+
     '<span class="bd"><h3>'+esc(pieceTitle(p))+'</h3>'+
     (has(p.name)&&clay?'<span class="mt" style="display:block">'+esc(clay.name)+'</span>':'')+
-    (npins?'<span class="mt" style="display:block;margin-top:2px">'+npins+' glaze mark'+(npins===1?'':'s')+'</span>':'')+
+    (glazes.length?'<span class="mt" style="display:block;margin-top:2px">'+esc(glazes.join(' · '))+'</span>':'')+
     '<span class="stage" style="color:'+col+';background:'+col+'22"><i></i>'+esc(stage)+'</span>'+
     '</span></button>';
 }
@@ -1038,12 +1040,13 @@ function pieceForm(p){
   const isNew=!p;
   p=p||{stage:'Thrown'};
   draft={};
-  const clayOpts=[{v:'',l:'—'}].concat(S.clays.map(c=>({v:c.id,l:c.name})));
+  const clay=clayById(p.clayId);
   const b='<input type="hidden" data-f="id" value="'+esc(p.id||'')+'">'+
     fld('Name (optional)',txt('name',p.name,'Morning mug no.4'))+
     fld('Stage',sel('stage',STAGES,stageOf(p.stage)))+
-    fld('Clay body',S.clays.length?sel('clayId',clayOpts,p.clayId||''):
-      '<button class="in" data-a="clay-new" style="text-align:left;color:var(--fg3)">No clay bodies yet — add one</button>')+
+    fld('Clay body','<input class="in" type="text" data-f="clayName" list="claynames" value="'+esc(clay?clay.name:'')+'"'+
+      ' placeholder="Standard 112 Buff" autocapitalize="words" autocomplete="off">'+
+      '<datalist id="claynames">'+S.clays.map(c=>'<option value="'+esc(c.name)+'">').join('')+'</datalist>')+
     fld('Notes (optional)',area('notes',p.notes,'What you were going for. What went sideways.'));
   sheet(isNew?'New piece':'Edit piece',b,'piece-save');
 }
@@ -1051,9 +1054,17 @@ async function pieceSave(){
   const v=readForm(document.getElementById('modal'));
   const id=has(v.id)?v.id:uid();
   const prev=pieceById(id)||{};
+  /* clay is entered by name — link an existing body (case-insensitive) or create one */
+  let clayId='', createdClay=null;
+  const cn=String(v.clayName||'').trim();
+  if(cn){
+    let c=S.clays.find(x=>(x.name||'').trim().toLowerCase()===cn.toLowerCase());
+    if(!c){ c={id:uid(),name:cn,updated:Date.now()}; createdClay=cn; await dbPut('clays',c); }
+    clayId=c.id;
+  }
   /* legacy fields on prev (form, dateStarted, firing) ride along untouched */
   const rec=Object.assign({},prev,{
-    id,name:v.name||'',stage:v.stage,clayId:v.clayId!==undefined?v.clayId:(prev.clayId||''),
+    id,name:v.name||'',stage:v.stage,clayId,
     notes:v.notes,
     photos:prev.photos||[], pins:prev.pins||[], updated:Date.now()
   });
@@ -1061,7 +1072,7 @@ async function pieceSave(){
   const wasNew=!prev.id;
   draft=null; closeSheet(); await loadAll();
   if(wasNew) open('piece',id); else render();
-  toast('Saved');
+  toast(createdClay?'Saved — added '+createdClay+' to clay bodies':'Saved');
 }
 
 /* ---------- inspo form ---------- */

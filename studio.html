@@ -241,16 +241,41 @@ async function hydrate(root){
   }
 }
 const MAXPX=1800;
-async function storeImageFile(file){
-  let w,h,src;
+/* heic2any (vendored, ~1.3MB) is only fetched the first time a HEIC
+   actually needs decoding — Safari and the iOS photo picker never do */
+let heicLoading=null;
+function loadHeicDecoder(){
+  if(window.heic2any) return Promise.resolve();
+  if(!heicLoading) heicLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src='heic2any.min.js';
+    s.onload=res;
+    s.onerror=()=>{ heicLoading=null; rej(new Error('heic2any.min.js not found next to studio.html')); };
+    document.head.appendChild(s);
+  });
+  return heicLoading;
+}
+const looksHeic=f=>/hei[cf]/i.test(f.type)||/\.hei[cf]$/i.test(f.name);
+async function decodeImage(file){
   try{
     const bmp=await createImageBitmap(file);
-    w=bmp.width; h=bmp.height; src=bmp;
+    return {src:bmp,w:bmp.width,h:bmp.height};
   }catch(e){
-    src=await new Promise((res,rej)=>{ const i=new Image();
-      i.onload=()=>res(i); i.onerror=rej; i.src=URL.createObjectURL(file); });
-    w=src.naturalWidth; h=src.naturalHeight;
+    try{
+      const i=await new Promise((res,rej)=>{ const im=new Image();
+        im.onload=()=>res(im); im.onerror=rej; im.src=URL.createObjectURL(file); });
+      return {src:i,w:i.naturalWidth,h:i.naturalHeight};
+    }catch(e2){
+      if(!looksHeic(file)) throw e2;
+      await loadHeicDecoder();
+      let jpg=await heic2any({blob:file,toType:'image/jpeg',quality:.9});
+      if(Array.isArray(jpg)) jpg=jpg[0];
+      const bmp=await createImageBitmap(jpg);
+      return {src:bmp,w:bmp.width,h:bmp.height};
+    }
   }
+}
+async function storeImageFile(file){
+  const {src,w,h}=await decodeImage(file);
   const k=Math.min(1,MAXPX/Math.max(w,h));
   const cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
   const c=document.createElement('canvas'); c.width=cw; c.height=ch;
@@ -289,7 +314,7 @@ document.getElementById('filepick').addEventListener('change',async e=>{
   }
   if(failed.length){
     toast('Couldn’t read '+failed.length+' photo'+(failed.length>1?'s':'')+
-      (ids.length?' — added '+ids.length:'')+'. HEIC? Try JPEG or PNG.');
+      (ids.length?' — added '+ids.length:''));
   }
   r(ids);
 });

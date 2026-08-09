@@ -5,7 +5,7 @@ A personal app Yudi uses **in the pottery studio, on an iPhone, with clay on the
 1. Reference a board of inspiration photos.
 2. Track glazes, clay bodies, and what went on which piece — including *where* on the piece.
 
-Everything lives in `studio.html`. One file, no build step, no dependencies.
+Everything lives in `studio.html`, plus one vendored file: `heic2any.min.js` (MIT, pinned 0.0.4), lazy-loaded only when a HEIC photo fails native decode — Yudi's photos come off an iPhone, and desktop Chrome can't decode HEIC. The two files must be served/hosted together. No build step, no CDN fetches at runtime, no other dependencies.
 
 ---
 

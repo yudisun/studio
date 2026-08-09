@@ -66,8 +66,8 @@ a{color:var(--accent)}
 .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:10px}
 .row{display:flex;align-items:center;gap:12px;padding:13px;min-height:var(--tap);width:100%;text-align:left}
 .row .grow{flex:1;min-width:0}
-.row .nm{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .mt{font-size:12.5px;color:var(--fg3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm{display:block;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .mt{display:block;font-size:12.5px;color:var(--fg3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .chev{color:var(--fg3);font-size:18px}
 .swatch{width:38px;height:38px;border-radius:10px;flex:none;border:1px solid rgba(255,255,255,.14);
   background-size:cover;background-position:center}
@@ -576,7 +576,7 @@ function viewClay(c){
   const used=S.pieces.filter(p=>p.clayId===c.id);
   let h='<button class="backbtn" data-a="back">&lsaquo; Materials</button>'+
     '<div class="hdr"><div style="flex:1"><h1>'+esc(c.name)+'</h1>'+
-    '<div class="sub">'+esc([c.type,c.coneRange].filter(has).join(' &middot; '))+'</div></div>'+
+    '<div class="sub">'+esc([c.type,c.coneRange].filter(has).join(' · '))+'</div></div>'+
     '<button class="iconbtn" data-a="clay-edit" data-id="'+c.id+'" aria-label="Edit">&#9998;</button></div><div class="wrap">';
   const rows=[['Supplier',c.supplier],['Type',c.type],['Cone range',c.coneRange],
     ['Raw color',c.colorRaw],['Fired color',c.colorFired]].filter(r=>has(r[1]));
@@ -688,7 +688,7 @@ function viewPiece(p){
     ['Clay body',clay?clay.name:''],
     ['Form',p.form],
     ['Started',fmtDate(p.dateStarted)],
-    ['Firing',[has(f.cone)?'cone '+f.cone:null,f.atmos,f.kiln].filter(has).join(' &middot; ')],
+    ['Firing',[has(f.cone)?'cone '+f.cone:null,f.atmos,f.kiln].filter(has).join(' · ')],
     ['Schedule',f.schedule],
     ['Fired on',fmtDate(f.date)]
   ].filter(r=>has(r[1]));
@@ -1016,7 +1016,7 @@ async function pieceSave(){
   const id=has(v.id)?v.id:uid();
   const prev=pieceById(id)||{};
   const rec=Object.assign({},prev,{
-    id,name:v.name,stage:v.stage,form:v.form,clayId:v.clayId||prev.clayId||'',
+    id,name:v.name,stage:v.stage,form:v.form,clayId:v.clayId!==undefined?v.clayId:(prev.clayId||''),
     dateStarted:v.dateStarted,notes:v.notes,
     firing:{cone:v.f_cone||'6',atmos:v.f_atmos||'Oxidation',kiln:v.f_kiln||'',schedule:v.f_schedule||'',date:v.f_date||''},
     photos:prev.photos||[], pins:prev.pins||[], updated:Date.now()

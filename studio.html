@@ -398,7 +398,10 @@ async function decodeImage(file){
   }
 }
 async function storeImageFile(file){
-  const taken=await exifDate(file);
+  /* EXIF first; fall back to the file's own timestamp — iOS strips EXIF when it
+     transcodes picker photos, but sets lastModified from the photo-library date */
+  let taken=await exifDate(file);
+  if(!taken&&file.lastModified>0&&file.lastModified<Date.now()+60000) taken=file.lastModified;
   const {src,w,h}=await decodeImage(file);
   const k=Math.min(1,MAXPX/Math.max(w,h));
   const cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
@@ -776,6 +779,8 @@ function renderLightbox(){
   window.__lbFit=fit;
   window.addEventListener('resize',fit);
   fit(); setTimeout(fit,60);
+  /* the img src arrives asynchronously (hydrate) — recenter once it has real size */
+  crop.querySelector('img').addEventListener('load',fit);
   d.addEventListener('focusin',()=>setTimeout(fit,60));
   d.addEventListener('focusout',()=>setTimeout(fit,180));
   hydrate(d);

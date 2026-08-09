@@ -99,13 +99,16 @@ a{color:var(--accent)}
   box-shadow:0 8px 30px rgba(0,0,0,.5)}
 .lbmenu button{display:block;width:100%;text-align:left;padding:15px 18px;
   color:#ffb3a6;font-size:15px;font-weight:600;min-height:var(--tap)}
-/* image top-aligned just under the bar; height capped clear of the note area
-   (explicit calc — percentage max-height resolves against the wrong box here) */
-.lightbox .lbstage{position:absolute;inset:0;overflow:hidden;display:grid;
-  place-items:start center;padding-top:calc(var(--safe-t) + 74px);touch-action:none}
-.lightbox .lbstage img{max-width:100%;
-  max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 232px);
+/* images render full-width in a crop window under the bar (~2:3 max, like a feed
+   crop); taller ones are cropped and pan vertically inside. Notes always sit on
+   solid black below the crop instead of overlaying the photo. */
+.lightbox .lbstage{position:absolute;inset:0;overflow:hidden;
+  padding-top:calc(var(--safe-t) + 74px)}
+.lightbox .crop{position:relative;width:100%;overflow:hidden;touch-action:none;
+  max-height:min(calc(100vw*1.5), calc(100vh - var(--safe-t) - var(--safe-b) - 254px))}
+.lightbox .crop img{width:100%;height:auto;display:block;
   transform-origin:center;transition:transform .18s}
+.lightbox.editing .lbbot{background:#000}
 .lightbox .lbbot{position:absolute;bottom:0;left:0;right:0;z-index:2;
   padding:26px 16px calc(18px + var(--safe-b));color:#e8e2d8;background:linear-gradient(#0000,#000d)}
 .lbnote{width:100%;background:rgba(255,255,255,.13);border:0;border-radius:12px;
@@ -661,11 +664,11 @@ function renderLightbox(){
       '<button class="iconbtn" data-a="lb-menu" aria-label="More">&#8943;</button>'+
     '</div>'+
     '<div class="lbmenu" hidden><button data-a="lb-del">Delete image</button></div>'+
-    '<div class="lbstage" data-a="lb-zoom">'+
+    '<div class="lbstage"><div class="crop" data-a="lb-zoom">'+
       '<img data-img="'+it.imageId+'" alt="">'+
       '<button class="lbnav l" data-a="lb-prev" aria-label="Previous"></button>'+
       '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
-    '</div>'+
+    '</div></div>'+
     '<div class="lbbot">'+
       '<div class="lbchips">'+tagChips(it.tags)+'</div>'+
       '<input class="lbnote lbtagsin" placeholder="Tags &mdash; comma separated"'+
@@ -691,51 +694,58 @@ function renderLightbox(){
     r.rec.tags=tags; await loadAll();
     d.querySelector('.lbchips').innerHTML=tagChips(tags);
   });
-  /* tapping into the note reveals the tags field */
+  /* tapping into the note reveals the tags field; the panel goes opaque while typing */
   d.addEventListener('focusin',e=>{
-    if(e.target===notein||e.target===tagsin) tagsin.hidden=false;
+    if(e.target===notein||e.target===tagsin){ tagsin.hidden=false; d.classList.add('editing'); }
   });
   d.addEventListener('focusout',()=>{
     setTimeout(()=>{
-      if(document.activeElement!==notein&&document.activeElement!==tagsin) tagsin.hidden=true;
+      if(document.activeElement!==notein&&document.activeElement!==tagsin){
+        tagsin.hidden=true; d.classList.remove('editing');
+      }
     },120);
   });
   hydrate(d);
   attachLightboxGestures(d);
 }
 function attachLightboxGestures(d){
-  const stage=d.querySelector('.lbstage'), img=stage.querySelector('img');
-  let z=1,ox=0,oy=0,sx=0,sy=0,drag=false,lastTap=0;
+  const stage=d.querySelector('.crop'), img=stage.querySelector('img');
+  let z=1,ox=0,oy=0,sx=0,sy=0,drag=false,basePan=false,lastTap=0;
   let pinchD=0,pinchZ=1;
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const overflow=()=>img.offsetHeight-stage.clientHeight; /* cropped-off pixels */
+  const clampBase=()=>{ ox=0; oy=Math.min(0,Math.max(-Math.max(0,overflow()),oy)); };
   const apply=()=>{
-    img.style.transform='translate('+ox+'px,'+oy+'px) scale('+z+')';
+    img.style.transform=(z===1&&!ox&&!oy)?'':'translate('+ox+'px,'+oy+'px) scale('+z+')';
     d.classList.toggle('zoomed',z>1); /* edge-swipe close stands down while panning */
   };
   stage.addEventListener('touchstart',e=>{
     if(e.touches.length===2){
-      pinchD=dist(e.touches); pinchZ=z; drag=false;
+      pinchD=dist(e.touches); pinchZ=z; drag=false; basePan=false;
       img.style.transition='none'; e.preventDefault(); return;
     }
     if(e.touches.length!==1) return;
     const t=Date.now();
     if(t-lastTap<300){ z=z>1?1:2.5; ox=0; oy=0; apply(); lastTap=0; e.preventDefault(); return; }
-    lastTap=t; drag=z>1; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy;
+    lastTap=t;
+    if(z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
+    else if(overflow()>2){ basePan=true; sy=e.touches[0].clientY-oy; img.style.transition='none'; }
   },{passive:false});
   stage.addEventListener('touchmove',e=>{
     if(e.touches.length===2&&pinchD){
       z=Math.min(6,Math.max(1,pinchZ*dist(e.touches)/pinchD));
-      if(z===1){ ox=0; oy=0; }
+      if(z===1){ ox=0; clampBase(); }
       apply(); e.preventDefault(); return;
     }
-    if(!drag||e.touches.length!==1) return;
-    ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; apply(); e.preventDefault();
+    if(e.touches.length!==1) return;
+    if(drag){ ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; apply(); e.preventDefault(); return; }
+    if(basePan){ oy=e.touches[0].clientY-sy; clampBase(); apply(); e.preventDefault(); }
   },{passive:false});
   stage.addEventListener('touchend',e=>{
     if(e.touches.length<2){ pinchD=0; img.style.transition=''; }
     if(e.touches.length===1&&z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return; }
-    drag=false;
-    if(z<1.05){ z=1; ox=0; oy=0; apply(); }
+    drag=false; basePan=false;
+    if(z<1.05&&z!==1){ z=1; ox=0; clampBase(); apply(); }
   });
   img.addEventListener('dblclick',()=>{ z=z>1?1:2.5; ox=0; oy=0; apply(); });
 }

@@ -108,13 +108,14 @@ a{color:var(--accent)}
 /* ---------- photo + pins ---------- */
 .photostage{position:relative;background:var(--bg3);border-radius:var(--r);overflow:hidden;
   border:1px solid var(--line);line-height:0;touch-action:pan-y}
-.photostage .zw{position:relative;transform-origin:0 0;will-change:transform}
+.photostage .zw{position:relative;transform-origin:0 0}
+.photostage .pinlayer{position:absolute;inset:0;line-height:0;pointer-events:none}
+.photostage .pinlayer .pin{pointer-events:auto}
 .photostage img{width:100%;display:block}
 .photostage.pinning{cursor:crosshair;box-shadow:0 0 0 2px var(--accent)}
 .pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;
   background:var(--accent);color:var(--accent-fg);font-size:11px;font-weight:750;
-  display:grid;place-items:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 1px 5px rgba(0,0,0,.4);line-height:1;
-  transform:scale(var(--pz,1))} /* counter-scale so markers stay 22px while the photo zooms */
+  display:grid;place-items:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 1px 5px rgba(0,0,0,.4);line-height:1}
 .pin.on{outline:2px solid #fff}
 .pin::after{content:"";position:absolute;inset:-13px} /* 48px tap target behind a 22px marker */
 .strip{display:flex;gap:7px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
@@ -124,10 +125,14 @@ a{color:var(--accent)}
 .strip .th[aria-current="true"]{border-color:var(--accent)}
 .strip .add{width:62px;height:62px;flex:none;border-radius:10px;border:1px dashed var(--line);
   display:grid;place-items:center;font-size:22px;color:var(--fg3)}
-.photobar{display:flex;gap:8px;align-items:center;padding:2px 0 4px}
-.pbtn{font-size:13px;font-weight:650;color:var(--fg2);background:var(--bg3);
-  border-radius:999px;padding:8px 14px;min-height:38px}
-.pbtn.dgr{color:var(--danger);background:none;border:1px solid var(--line)}
+.thw{position:relative;flex:none}
+.thx{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;z-index:2;
+  background:var(--fg);color:var(--bg2);font-size:15px;line-height:1;display:grid;place-items:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.thx::after{content:"";position:absolute;inset:-10px} /* bigger tap target */
+.strip .th{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.strip .thw{transition:transform .15s}
+.strip .thw.dragging{opacity:.85;z-index:3;transition:none}
 .hintbar{background:var(--accent);color:var(--accent-fg);font-size:13.5px;font-weight:600;
   padding:10px 14px;border-radius:10px;margin:10px 0;display:flex;align-items:center;gap:10px}
 .hintbar button{margin-left:auto;font-weight:700;text-decoration:underline}
@@ -439,6 +444,8 @@ function render(){
   renderLightbox();
   const zst=app.querySelector('.photostage .zw');
   if(zst) attachStageZoom(zst.parentElement);
+  const strip=app.querySelector('.strip');
+  if(strip&&S.route&&S.route.name==='piece') attachStripDrag(strip);
   hydrate(app);
   hydrate(document.getElementById('modal'));
 }
@@ -450,7 +457,17 @@ function attachStageZoom(stage){
   const mid=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
   const apply=()=>{
     zw.style.transform=z===1?'':'translate('+ox+'px,'+oy+'px) scale('+z+')';
-    stage.style.setProperty('--pz',1/z);
+    /* pins sit outside the transform — track them by math so they stay crisp */
+    const pl=stage.querySelector('.pinlayer');
+    if(pl){
+      const img=zw.querySelector('img');
+      const W=img.offsetWidth,H=img.offsetHeight;
+      pl.querySelectorAll('.pin').forEach(pin=>{
+        const nx=+pin.dataset.x, ny=+pin.dataset.y;
+        if(z===1){ pin.style.left=(nx*100)+'%'; pin.style.top=(ny*100)+'%'; }
+        else{ pin.style.left=(ox+nx*W*z)+'px'; pin.style.top=(oy+ny*H*z)+'px'; }
+      });
+    }
   };
   stage.addEventListener('touchstart',e=>{
     if(e.touches.length===2){
@@ -483,6 +500,72 @@ function attachStageZoom(stage){
       drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return;
     }
     if(!e.touches.length){ drag=false; if(z<1.05){ z=1; ox=0; oy=0; apply(); } }
+  });
+}
+/* hold-and-drag photo reorder, like iOS Photos */
+function attachStripDrag(strip){
+  const HOLD=280, W=69; /* 62px thumb + 7px gap */
+  let timer=null, el=null, i0=0, x0=0, y0=0, active=false, others=null;
+  const wrap=t=>t&&t.closest('.thw');
+  const idxOf=w=>+w.querySelector('.th').dataset.i;
+  const target=dx=>Math.max(0,Math.min(others.length,i0+Math.round(dx/W)));
+  const start=(w,x,y)=>{
+    el=w; i0=idxOf(w); x0=x; y0=y; active=true; window.__dragLock=true;
+    others=[...strip.querySelectorAll('.thw')].filter(o=>o!==w);
+    el.classList.add('dragging');
+    el.style.transform='translateX(0) scale(1.08)';
+  };
+  const move=x=>{
+    const dx=x-x0, j=target(dx);
+    el.style.transform='translateX('+dx+'px) scale(1.08)';
+    others.forEach(o=>{
+      const oi=idxOf(o); let s=0;
+      if(i0<j&&oi>i0&&oi<=j) s=-W;
+      else if(i0>j&&oi>=j&&oi<i0) s=W;
+      o.style.transform=s?'translateX('+s+'px)':'';
+    });
+  };
+  const end=async x=>{
+    const from=i0, to=target(x-x0);
+    el.classList.remove('dragging'); el.style.transform='';
+    others.forEach(o=>o.style.transform='');
+    el=null; others=null; active=false;
+    setTimeout(()=>{ window.__dragLock=false; },350);
+    if(to===from) return;
+    const p=pieceById(S.route.id); if(!p) return;
+    const photos=(p.photos||[]).slice();
+    const [ph]=photos.splice(from,1); photos.splice(to,0,ph);
+    await dbPut('pieces',Object.assign({},p,{photos,updated:Date.now()}));
+    S.photoIdx=to; await loadAll(); render();
+  };
+  const cancel=()=>{ clearTimeout(timer); timer=null; };
+  strip.addEventListener('touchstart',e=>{
+    const w=wrap(e.target); if(!w) return;
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY;
+    cancel(); timer=setTimeout(()=>start(w,x0,y0),HOLD);
+  },{passive:true});
+  strip.addEventListener('touchmove',e=>{
+    if(active){ e.preventDefault(); move(e.touches[0].clientX); return; }
+    if(timer&&(Math.abs(e.touches[0].clientX-x0)>8||Math.abs(e.touches[0].clientY-y0)>8)) cancel();
+  },{passive:false});
+  strip.addEventListener('touchend',e=>{
+    cancel();
+    if(active) end(e.changedTouches[0].clientX);
+  });
+  /* mouse fallback (desktop testing) */
+  strip.addEventListener('mousedown',e=>{
+    const w=wrap(e.target); if(!w) return;
+    x0=e.clientX; y0=e.clientY;
+    cancel(); timer=setTimeout(()=>start(w,x0,y0),HOLD);
+    const mm=ev=>{ if(active) move(ev.clientX); };
+    const mu=ev=>{
+      cancel();
+      document.removeEventListener('mousemove',mm);
+      document.removeEventListener('mouseup',mu);
+      if(active) end(ev.clientX);
+    };
+    document.addEventListener('mousemove',mm);
+    document.addEventListener('mouseup',mu);
   });
 }
 function go(tab){ S.tab=tab; S.route=null; S.q=''; window.scrollTo(0,0); render(); }
@@ -784,15 +867,17 @@ function viewPiece(p){
   const combos=pieceCombos(p);
   const comboIndex=pn=>combos.findIndex(c=>c.key===comboKey(pn));
   if(photoId){
+    /* pins live OUTSIDE the transformed .zw (in .pinlayer) and are repositioned
+       by attachStageZoom's apply() — inside the scaled layer they rasterize blurry */
     h+='<div class="photostage'+(S.pinMode?' pinning':'')+'" data-a="stage-tap" data-photo="'+photoId+'">'+
-       '<div class="zw">'+
-       '<img data-img="'+photoId+'" alt="">'+
-       (S.showPins?pins.map(pn=>{
+       '<div class="zw"><img data-img="'+photoId+'" alt=""></div>'+
+       (S.showPins?'<div class="pinlayer">'+pins.map(pn=>{
          const n=comboIndex(pn)+1; /* same combo = same number, everywhere */
          return '<button class="pin'+(S.activePin===pn.id?' on':'')+'" data-a="pin-open" data-pin="'+pn.id+'" '+
+           'data-x="'+pn.x+'" data-y="'+pn.y+'" '+
            'style="left:'+(pn.x*100)+'%;top:'+(pn.y*100)+'%">'+n+'</button>';
-       }).join(''):'')+
-       '</div></div>';
+       }).join('')+'</div>':'')+
+       '</div>';
     if(S.pinMode){
       h+='<div class="hintbar"><span>Tap the spot on the photo</span>'+
          '<button data-a="pin-cancel">Cancel</button></div>';
@@ -804,16 +889,12 @@ function viewPiece(p){
     }
   }
   h+='<div class="strip">'+photos.map((id,i)=>
-      '<button class="th" data-a="photo-sel" data-i="'+i+'" data-img="'+id+'" aria-current="'+(i===idx)+'"></button>'
-    ).join('')+'<button class="add" data-a="photo-add" data-id="'+p.id+'" aria-label="Add photo">+</button></div>';
-  if(photoId&&photos.length){
-    h+='<div class="photobar">'+
-      (idx>0?'<button class="pbtn" data-a="photo-move" data-d="-1">&lsaquo; Move</button>':'')+
-      (idx<photos.length-1?'<button class="pbtn" data-a="photo-move" data-d="1">Move &rsaquo;</button>':'')+
-      '<span style="flex:1"></span>'+
-      '<button class="pbtn dgr" data-a="photo-del" data-id="'+p.id+'">Remove photo</button>'+
-      '</div>';
-  }
+      '<span class="thw">'+
+      '<button class="th" data-a="photo-sel" data-i="'+i+'" data-img="'+id+'" aria-current="'+(i===idx)+'"></button>'+
+      (i===idx?'<button class="thx" data-a="photo-del" data-id="'+p.id+'" aria-label="Remove photo">&times;</button>':'')+
+      '</span>'
+    ).join('')+'<button class="add" data-a="photo-add" data-id="'+p.id+'" aria-label="Add photo">+</button></div>'+
+    (photos.length>1?'<div class="orderhint" style="margin:2px 0 8px">Hold and drag to reorder &mdash; first photo is the cover.</div>':'');
 
   if(combos.length){
     h+='<div class="sect">Glaze combos</div><div class="card">'+combos.map((c,i)=>{
@@ -1439,16 +1520,9 @@ document.addEventListener('click',async ev=>{
     case 'piece-del':
       if(!confirm('Delete this piece and its marks?')) break;
       await dbDel('pieces',id); await loadAll(); back(); toast('Deleted'); break;
-    case 'photo-sel': S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
-    case 'photo-move': {
-      const p=pieceById(S.route.id);
-      const photos=(p.photos||[]).slice();
-      const i=Math.min(S.photoIdx,photos.length-1), j=i+(+el.dataset.d);
-      if(j<0||j>=photos.length) break;
-      const t=photos[i]; photos[i]=photos[j]; photos[j]=t;
-      await dbPut('pieces',Object.assign({},p,{photos,updated:Date.now()}));
-      S.photoIdx=j; await loadAll(); render(); break;
-    }
+    case 'photo-sel':
+      if(window.__dragLock) break; /* tap at the end of a drag isn't a select */
+      S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
     case 'photo-add': {
       const ids=await pickImages(true);
       if(!ids.length) break;
@@ -1520,6 +1594,24 @@ document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.l)
 document.getElementById('modal').addEventListener('click',e=>{
   if(e.target.id==='modal'){ draft=null; closeSheet(); }
 });
+/* swipe from the left edge to go back — standalone mode has no browser gesture */
+let esX=null,esY=null,esT=0;
+document.addEventListener('touchstart',e=>{
+  esX=null;
+  if(e.touches.length!==1) return;
+  const t=e.touches[0];
+  if(t.clientX>28) return;                                  /* must start at the edge */
+  if(!S.route) return;                                       /* only detail views go back */
+  if(S.lightbox||document.getElementById('modal').innerHTML) return;
+  esX=t.clientX; esY=t.clientY; esT=Date.now();
+},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(esX===null) return;
+  const t=e.changedTouches[0];
+  const dx=t.clientX-esX, dy=Math.abs(t.clientY-esY);
+  esX=null;
+  if(dx>70&&dy<60&&Date.now()-esT<700) back();
+},{passive:true});
 /* hardware / gesture back */
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape') return;

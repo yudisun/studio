@@ -45,7 +45,9 @@ inspo      { id, imageId, tags:[string], note, added }
 images     { id, blob, w, h }
 ```
 
-`Pin.x` / `Pin.y` are **normalized 0–1** against the displayed photo. The `stage-tap` handler measures the IMG's `getBoundingClientRect()` (not the stage), so coordinates stay correct even while the photo is pinch-zoomed. The piece photo supports in-place pinch zoom (`attachStageZoom`, transform on `.zw` wrapper); pins counter-scale via `--pz` so markers stay 22px at any zoom, and their 48px tap pad (`.pin::after`) stays constant too. If you change the photo layout to use `object-fit`, you must fix the coordinate math.
+`Pin.x` / `Pin.y` are **normalized 0–1** against the displayed photo. The `stage-tap` handler measures the IMG's `getBoundingClientRect()` (not the stage), so coordinates stay correct even while the photo is pinch-zoomed. The piece photo supports in-place pinch zoom (`attachStageZoom`, transform on `.zw` wrapper). **Pins live in `.pinlayer`, OUTSIDE the transformed wrapper**, repositioned by math in `apply()` — inside the scaled layer they rasterize blurry (Yudi noticed immediately). Don't move them back in. If you change the photo layout to use `object-fit`, you must fix the coordinate math.
+
+Photo strip: the selected thumb carries an ✕ badge to remove; hold-and-drag reorders (`attachStripDrag`, iOS-Photos style; first photo is the piece's cover). A left-edge swipe (>70px, mostly horizontal) goes back from detail views — standalone mode has no browser back gesture.
 
 `STAGES` are `Thrown → Bisque → Glazed → Fired`, each with a color in `STAGE_COLOR`. The ladder used to include Idea/Trimmed/Drying; `STAGE_ALIAS` maps those (from old data or backups) to `Thrown` — display via `stageOf()`, never raw `p.stage`.
 

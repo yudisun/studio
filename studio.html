@@ -90,20 +90,30 @@ a{color:var(--accent)}
 .grid .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .lightbox{position:fixed;inset:0;z-index:60;background:#000}
 .lightbox .lbtop{position:absolute;top:0;left:0;right:0;z-index:2;
-  display:flex;align-items:center;gap:8px;padding:calc(var(--safe-t) + 10px) 12px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:calc(var(--safe-t) + 10px) 12px 14px;
   color:#fff;background:linear-gradient(#000c,#0000)}
-/* the stage fills the screen so the photo centers for real; the image itself is
-   capped symmetrically so tall photos letterbox clear of the bars instead of
-   running under them (percentage max-height resolves against the wrong box here) */
-.lightbox .lbstage{position:absolute;inset:0;overflow:hidden;display:grid;place-items:center;touch-action:none}
+.lbcount{position:absolute;left:50%;transform:translateX(-50%);font-size:13px;color:#b9b1a5}
+.lbmenu{position:absolute;top:calc(var(--safe-t) + 62px);right:12px;z-index:3;
+  background:rgba(28,28,28,.97);border-radius:14px;overflow:hidden;min-width:170px;
+  box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.lbmenu button{display:block;width:100%;text-align:left;padding:15px 18px;
+  color:#ffb3a6;font-size:15px;font-weight:600;min-height:var(--tap)}
+/* image top-aligned just under the bar; height capped clear of the note area
+   (explicit calc — percentage max-height resolves against the wrong box here) */
+.lightbox .lbstage{position:absolute;inset:0;overflow:hidden;display:grid;
+  place-items:start center;padding-top:calc(var(--safe-t) + 74px);touch-action:none}
 .lightbox .lbstage img{max-width:100%;
-  max-height:calc(100vh - (max(var(--safe-t),var(--safe-b)) + 132px)*2);
+  max-height:calc(100vh - var(--safe-t) - var(--safe-b) - 232px);
   transform-origin:center;transition:transform .18s}
 .lightbox .lbbot{position:absolute;bottom:0;left:0;right:0;z-index:2;
   padding:26px 16px calc(18px + var(--safe-b));color:#e8e2d8;background:linear-gradient(#0000,#000d)}
 .lbnote{width:100%;background:rgba(255,255,255,.13);border:0;border-radius:12px;
   padding:12px 14px;min-height:44px;color:#fff;font:inherit;font-size:14.5px}
 .lbnote::placeholder{color:rgba(255,255,255,.55)}
+.lbtagsin{margin-bottom:8px}
+.lbchips:not(:empty){margin-bottom:8px}
+.grid .cell{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .lbnav{position:absolute;top:0;bottom:0;width:34%;z-index:1}
 .lbnav.l{left:0}.lbnav.r{right:0}
 .lightbox .iconbtn{background:rgba(255,255,255,.16);color:#fff}
@@ -622,6 +632,11 @@ function viewInspo(){
 function inspoFiltered(){
   return S.inspo.filter(x=>S.inspoTag==='All'||(x.tags||[]).includes(S.inspoTag));
 }
+async function deleteInspoItem(it){
+  await dbDel('inspo',it.id);
+  if(it.imageId){ await dbDel('images',it.imageId); urlCache.delete(it.imageId); }
+  await loadAll();
+}
 async function addInspo(){
   const ids=await pickImages(true);
   if(!ids.length) return;
@@ -637,31 +652,53 @@ function renderLightbox(){
   if(!S.lightbox) return;
   const {items,i}=S.lightbox;
   const it=items[i]; if(!it) { S.lightbox=null; return; }
+  const tagChips=ts=>(ts&&ts.length)?ts.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join(''):'';
   const d=document.createElement('div'); d.className='lightbox';
   d.innerHTML=
     '<div class="lbtop">'+
       '<button class="iconbtn" data-a="lb-close" aria-label="Close">&times;</button>'+
-      '<div style="flex:1;text-align:center;font-size:13px;color:#b9b1a5">'+(i+1)+' / '+items.length+'</div>'+
-      '<button class="lbbtn" data-a="lb-edit">Edit</button>'+
-      '<button class="lbbtn" data-a="lb-del" style="color:#ffb3a6">Delete</button>'+
+      '<div class="lbcount">'+(i+1)+' / '+items.length+'</div>'+
+      '<button class="iconbtn" data-a="lb-menu" aria-label="More">&#8943;</button>'+
     '</div>'+
+    '<div class="lbmenu" hidden><button data-a="lb-del">Delete image</button></div>'+
     '<div class="lbstage" data-a="lb-zoom">'+
       '<img data-img="'+it.imageId+'" alt="">'+
       '<button class="lbnav l" data-a="lb-prev" aria-label="Previous"></button>'+
       '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
     '</div>'+
     '<div class="lbbot">'+
-      ((it.tags&&it.tags.length)?'<div style="margin-bottom:8px">'+it.tags.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join('')+'</div>':'')+
-      '<input class="lbnote" placeholder="Add a note&hellip;" value="'+esc(it.note||'')+'">'+
+      '<div class="lbchips">'+tagChips(it.tags)+'</div>'+
+      '<input class="lbnote lbtagsin" placeholder="Tags &mdash; comma separated"'+
+        ' value="'+esc((it.tags||[]).join(', '))+'" autocapitalize="none" autocomplete="off" hidden>'+
+      '<input class="lbnote lbnotein" placeholder="Add a note&hellip;" value="'+esc(it.note||'')+'">'+
     '</div>';
   document.body.appendChild(d);
-  /* the note saves in place — no Edit sheet needed for the common case */
-  d.querySelector('.lbnote').addEventListener('change',async e=>{
-    const rec=S.lightbox&&S.lightbox.items[S.lightbox.i]; if(!rec) return;
-    const prev=S.inspo.find(x=>x.id===rec.id); if(!prev) return;
-    await dbPut('inspo',Object.assign({},prev,{note:e.target.value}));
-    rec.note=e.target.value;
-    await loadAll();
+  /* note and tags save in place — no Edit sheet */
+  const notein=d.querySelector('.lbnotein'), tagsin=d.querySelector('.lbtagsin');
+  const liveRec=()=>{
+    const rec=S.lightbox&&S.lightbox.items[S.lightbox.i];
+    return rec?{rec,prev:S.inspo.find(x=>x.id===rec.id)}:null;
+  };
+  notein.addEventListener('change',async e=>{
+    const r=liveRec(); if(!r||!r.prev) return;
+    await dbPut('inspo',Object.assign({},r.prev,{note:e.target.value}));
+    r.rec.note=e.target.value; await loadAll();
+  });
+  tagsin.addEventListener('change',async e=>{
+    const r=liveRec(); if(!r||!r.prev) return;
+    const tags=String(e.target.value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+    await dbPut('inspo',Object.assign({},r.prev,{tags}));
+    r.rec.tags=tags; await loadAll();
+    d.querySelector('.lbchips').innerHTML=tagChips(tags);
+  });
+  /* tapping into the note reveals the tags field */
+  d.addEventListener('focusin',e=>{
+    if(e.target===notein||e.target===tagsin) tagsin.hidden=false;
+  });
+  d.addEventListener('focusout',()=>{
+    setTimeout(()=>{
+      if(document.activeElement!==notein&&document.activeElement!==tagsin) tagsin.hidden=true;
+    },120);
   });
   hydrate(d);
   attachLightboxGestures(d);
@@ -1279,25 +1316,6 @@ async function pieceSave(){
   toast(createdClay?'Saved — added '+createdClay+' to clay bodies':'Saved');
 }
 
-/* ---------- inspo form ---------- */
-function inspoForm(it){
-  draft={};
-  const b='<input type="hidden" data-f="id" value="'+esc(it.id)+'">'+
-    fld('Tags',txt('tags',(it.tags||[]).join(', '),'form, surface, handles'))+
-    '<div class="orderhint">Comma separated. Reused tags become filters.</div>'+
-    fld('Note',area('note',it.note,'What you want to steal from this.'));
-  sheet('Image details',b,'inspo-save');
-}
-async function inspoSave(){
-  const v=readForm(document.getElementById('modal'));
-  const prev=S.inspo.find(x=>x.id===v.id)||{};
-  const tags=String(v.tags||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
-  await dbPut('inspo',Object.assign({},prev,{tags,note:v.note}));
-  closeSheet(); await loadAll();
-  if(S.lightbox) S.lightbox.items=inspoFiltered();
-  render(); toast('Saved');
-}
-
 /* ---------- pin sheet ---------- */
 /* a combo is a distinct layer stack; pins with the same stack share an identity */
 function comboKey(pn){
@@ -1423,6 +1441,10 @@ document.addEventListener('click',async ev=>{
   const el=ev.target.closest('[data-a]'); if(!el) return;
   const a=el.dataset.a, id=el.dataset.id;
 
+  /* any tap outside the … button dismisses the lightbox menu */
+  const lbm=document.querySelector('.lbmenu');
+  if(lbm&&!lbm.hidden&&a!=='lb-menu'&&a!=='lb-del') lbm.hidden=true;
+
   /* --- pin placement takes priority --- */
   if(a==='stage-tap'){
     if(!S.pinMode) return;
@@ -1461,23 +1483,25 @@ document.addEventListener('click',async ev=>{
     case 'inspo-add': await addInspo(); break;
     case 'inspo-tag': S.inspoTag=el.dataset.t; render(); break;
     case 'inspo-open':
+      if(window.__dragLock) break; /* tail end of a long-press isn't an open */
       S.lightbox={items:inspoFiltered(),i:+el.dataset.i}; renderLightbox(); break;
     case 'lb-close': S.lightbox=null; renderLightbox(); break;
     case 'lb-prev': lbStep(-1); break;
     case 'lb-next': lbStep(1); break;
-    case 'lb-edit': inspoForm(S.lightbox.items[S.lightbox.i]); break;
+    case 'lb-menu': {
+      const lm=document.querySelector('.lbmenu');
+      if(lm) lm.hidden=!lm.hidden;
+      break;
+    }
     case 'lb-del': {
       const it=S.lightbox.items[S.lightbox.i];
       if(!confirm('Delete this image?')) break;
-      await dbDel('inspo',it.id); if(it.imageId) await dbDel('images',it.imageId);
-      urlCache.delete(it.imageId);
-      await loadAll();
+      await deleteInspoItem(it);
       const items=inspoFiltered();
       if(!items.length) S.lightbox=null;
       else { S.lightbox.items=items; S.lightbox.i=Math.min(S.lightbox.i,items.length-1); }
       render(); break;
     }
-    case 'inspo-save': await inspoSave(); break;
 
     /* materials */
     case 'mat-type': S.matType=el.dataset.t; render(); break;
@@ -1619,6 +1643,24 @@ document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.l)
 document.getElementById('modal').addEventListener('click',e=>{
   if(e.target.id==='modal'){ draft=null; closeSheet(); }
 });
+/* long-press an inspo tile to delete it, like iOS */
+let lpTimer=null;
+document.addEventListener('touchstart',e=>{
+  const cell=e.target.closest&&e.target.closest('[data-a="inspo-open"]');
+  if(!cell) return;
+  const item=inspoFiltered()[+cell.dataset.i];
+  lpTimer=setTimeout(async()=>{
+    lpTimer=null;
+    window.__dragLock=true;
+    setTimeout(()=>{ window.__dragLock=false; },400);
+    if(item&&confirm('Delete this image?')){
+      await deleteInspoItem(item); render(); toast('Deleted');
+    }
+  },550);
+},{passive:true});
+document.addEventListener('touchmove',()=>{ if(lpTimer){ clearTimeout(lpTimer); lpTimer=null; } },{passive:true});
+document.addEventListener('touchend',()=>{ if(lpTimer){ clearTimeout(lpTimer); lpTimer=null; } },{passive:true});
+
 /* swipe from the left edge to go back — standalone mode has no browser gesture.
    Direction-locks after ~6px: horizontal claims the gesture (and suppresses the
    scroll that made it feel janky); vertical hands it back to the scroller. */

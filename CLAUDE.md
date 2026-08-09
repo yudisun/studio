@@ -64,7 +64,7 @@ The Backup tab has a **Load sample data** button that generates fake glazes, cla
 ## Not done yet, known
 
 - **Hosting.** Needs a stable HTTPS origin for Add to Home Screen to behave and for a service worker. Currently there's no service worker; offline relies on iOS caching the page, which is not good enough. Adding a real SW means going multi-file — that's fine, the single-file constraint was for the prototype phase only.
-- **Style.** Yudi is giving visual direction *after* seeing it work. Current styling is deliberately plain: warm near-black, one amber accent, system font, 48px minimum tap targets. **Treat all of it as placeholder.** Don't invest in visual polish before that direction lands.
+- **Style direction landed 2026-08-09: Blank Street Coffee's app.** Minimalist, clean, light mode. Warm cream page (#f6efe6), white cards with 20–24px radii, beige tonal tiles/inputs (#f0e4d2), dark warm-brown type (#46372a), one forest-green accent (#2e5c44). Primary actions are full-width green pills with UPPERCASE letter-spaced labels; secondary actions are beige pills; icon buttons are beige circles. System font, 48px minimum tap targets. The lightbox stays black — it's a photo viewer. Stage colors are muted (terracotta/ochre/steel/green) to sit on cream. Iterate within this language; don't reintroduce dark mode without asking.
 - **Pinch-zoom in the lightbox** is a hand-rolled double-tap-to-2.5x with drag pan, because the viewport is locked with `user-scalable=no`. It's adequate, not good. Real pinch would be better.
 - No reordering of pin layers after creation — you delete and re-add.
 - No way to duplicate a piece or a glaze combo, which will probably get annoying.

@@ -130,6 +130,7 @@ a{color:var(--accent)}
 .pinrow{display:flex;gap:11px;padding:12px 13px;align-items:flex-start;width:100%;text-align:left}
 .pinrow .num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-fg);
   font-size:12px;font-weight:750;display:grid;place-items:center;flex:none;margin-top:1px}
+.pinrow .mt{display:block;font-size:12.5px;color:var(--fg3);margin-top:3px}
 .layers{font-size:14.5px;line-height:1.5}
 .layers .sep{color:var(--fg3);padding:0 3px}
 .infogrid{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;font-size:14.5px;padding:13px}
@@ -1192,12 +1193,15 @@ function pinForm(piece,pin,coords){
          combos:isNew?pieceCombos(piece):[]};
   if(!draft.layers.length) draft.layers=[{name:'',coats:'',method:''}];
   const comboHTML=draft.combos.length?
-    '<div class="orderhint" style="margin-bottom:6px">Already on this piece &mdash; tap to reuse</div>'+
+    '<div class="sect" style="margin-top:0">Already on this piece</div>'+
+    '<div class="orderhint" style="margin-top:-4px">Tap to reuse the whole combo.</div>'+
     '<div class="combobar">'+draft.combos.map((c,i)=>
       '<button type="button" class="chip" data-a="combo-pick" data-i="'+i+'">'+esc(c.label)+'</button>'
     ).join('')+'</div>':'';
   const b=comboHTML+
-    '<div class="orderhint">Layers in the order you applied them &mdash; first at the top.</div>'+
+    '<div class="sect" style="margin-top:'+(draft.combos.length?'6px':'0')+'">'+
+      (draft.combos.length?'Or mark a new combo':'Layers')+'</div>'+
+    '<div class="orderhint" style="margin-top:-4px">In the order you applied them &mdash; first at the top.</div>'+
     '<div id="layerbox">'+layersHTML()+'</div>'+
     fld('Note',txt('note',pin.note,'Interior pool, rim break…'))+
     (isNew?'':'<button class="btn dgr" data-a="pin-del">Delete this mark</button>');

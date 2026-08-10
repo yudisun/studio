@@ -119,6 +119,17 @@ a{color:var(--accent)}
 .lbtags .chip{flex:none;background:rgba(255,255,255,.14);border-color:transparent;color:#fff;min-height:38px}
 .lbtags .chip[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:650}
 .grid .cell{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.grid .cell.sel img{opacity:.55}
+.grid .cell .ck{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;z-index:2;
+  background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px;
+  box-shadow:0 0 0 2px #fff}
+.selbar{position:fixed;left:0;right:0;bottom:calc(56px + var(--safe-b));z-index:38;
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  background:var(--bg2);border-top:1px solid var(--line)}
+.selbar .sb{border-radius:999px;padding:11px 20px;font-size:12.5px;font-weight:750;
+  letter-spacing:.06em;text-transform:uppercase;min-height:44px}
+.selbar .sb.tag{background:var(--accent);color:var(--accent-fg)}
+.selbar .sb.del{color:var(--danger);border:1px solid var(--line)}
 .lbnav{position:absolute;top:0;bottom:0;width:34%;z-index:1}
 .lbnav.l{left:0}.lbnav.r{right:0}
 .lightbox .iconbtn{background:rgba(255,255,255,.16);color:#fff}
@@ -456,7 +467,7 @@ const S={
   tab:'inspo',
   route:null,           // {name:'piece'|'material'|'clay', id}
   materials:[], clays:[], pieces:[], inspo:[],
-  q:'', matType:'All', inspoTag:'All',
+  q:'', matType:'All', inspoTag:'All', inspoSel:null,
   lightbox:null,        // {ids:[], i:0, ctx:'inspo'}
   photoIdx:0, pinMode:false, activePin:null, showPins:true,
   comboOpen:null, recipeOpen:false
@@ -658,7 +669,7 @@ function attachStripDrag(strip){
     document.addEventListener('mouseup',mu);
   });
 }
-function go(tab){ S.tab=tab; S.route=null; S.q=''; window.scrollTo(0,0); render(); }
+function go(tab){ S.tab=tab; S.route=null; S.q=''; S.inspoSel=null; window.scrollTo(0,0); render(); }
 function open(name,id){
   S.route={name,id}; S.photoIdx=0; S.pinMode=false; S.activePin=null; S.showPins=true; S.comboOpen=null;
   window.scrollTo(0,0); render();
@@ -675,9 +686,12 @@ function allTags(){
 function viewInspo(){
   const tags=allTags();
   const list=S.inspo.filter(x=>S.inspoTag==='All'||(x.tags||[]).includes(S.inspoTag));
+  const sel=S.inspoSel;
   let h='<div class="hdr"><div style="flex:1"><h1>Inspo</h1>'+
-    '<div class="sub">'+S.inspo.length+' image'+(S.inspo.length===1?'':'s')+'</div></div>'+
-    '<button class="iconbtn" data-a="inspo-add" aria-label="Add images">+</button></div>';
+    '<div class="sub">'+(sel?sel.size+' selected':S.inspo.length+' image'+(S.inspo.length===1?'':'s'))+'</div></div>'+
+    (S.inspo.length?'<button class="editpill" data-a="inspo-select">'+(sel?'Cancel':'Select')+'</button>':'')+
+    (sel?'':'<button class="iconbtn" data-a="inspo-add" aria-label="Add images" style="margin-left:8px">+</button>')+
+    '</div>';
   if(tags.length){
     h+='<div class="chips">'+['All'].concat(tags).map(t=>
       '<button class="chip" data-a="inspo-tag" data-t="'+esc(t)+'" aria-pressed="'+(S.inspoTag===t)+'">'+
@@ -687,11 +701,21 @@ function viewInspo(){
     h+='<div class="empty"><b>'+(S.inspo.length?'Nothing with that tag':'No images yet')+'</b>'+
        (S.inspo.length?'Try another filter.':'Add photos of forms, surfaces, and glazes you want to chase.')+'</div>';
   }else{
-    h+='<div class="grid">'+list.map((x,i)=>
-      '<button class="cell" data-a="inspo-open" data-i="'+i+'"><img data-img="'+x.imageId+'" alt=""></button>'
-    ).join('')+'</div>';
+    h+='<div class="grid">'+list.map((x,i)=>{
+      const on=sel&&sel.has(x.id);
+      return '<button class="cell'+(on?' sel':'')+'" data-a="inspo-open" data-i="'+i+'">'+
+        '<img data-img="'+x.imageId+'" alt="">'+(on?'<span class="ck">&#10003;</span>':'')+'</button>';
+    }).join('')+'</div>';
   }
-  h+='<button class="fab" data-a="inspo-add" aria-label="Add images">+</button>';
+  if(sel){
+    h+='<div class="selbar">'+
+      '<button class="sb del" data-a="inspo-sel-del">Delete</button>'+
+      '<span style="flex:1"></span>'+
+      '<button class="sb tag" data-a="inspo-sel-tag">Tag</button>'+
+      '</div>';
+  }else{
+    h+='<button class="fab" data-a="inspo-add" aria-label="Add images">+</button>';
+  }
   return h;
 }
 function inspoFiltered(){
@@ -786,9 +810,9 @@ function renderLightbox(){
     if(!document.body.contains(crop)) return;
     const topH=lbtopEl.offsetHeight, botH=lbbotEl.offsetHeight;
     const room=window.innerHeight-topH-botH-12;
-    /* cap at 4:5 and at 85% of the room — a taller cap eats all the space
+    /* cap at 3:4 and at 85% of the room — a taller cap eats all the space
        between the bars on a phone and the centering becomes invisible */
-    crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.25,room*.85))+'px';
+    crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*4/3,room*.85))+'px';
     /* stage spans the full viewport; place the crop below the bar, centered in
        the space between the bars — measured pixels only, no CSS viewport math */
     crop.style.marginTop=(topH+6+Math.max(0,(room-crop.offsetHeight)/2))+'px';
@@ -844,6 +868,15 @@ function attachLightboxGestures(d){
     if(z<1.05&&z!==1){ z=1; ox=0; clampBase(); apply(); }
   });
   img.addEventListener('dblclick',()=>{ z=z>1?1:2.5; ox=0; oy=0; apply(); });
+  /* start a cropped image showing its MIDDLE, not its top */
+  const centerBase=()=>{
+    if(z!==1||drag||basePan) return;
+    img.style.transition='none';
+    ox=0; oy=-Math.max(0,overflow())/2; apply();
+    requestAnimationFrame(()=>{ img.style.transition=''; });
+  };
+  img.addEventListener('load',()=>setTimeout(centerBase,0));
+  if(img.complete&&img.naturalWidth) centerBase();
 }
 function lbStep(n){
   if(!S.lightbox) return;
@@ -1632,12 +1665,32 @@ document.addEventListener('click',async ev=>{
         }
         await loadAll();
       }
-      draft=null; closeSheet(); render();
+      draft=null; S.inspoSel=null; closeSheet(); render();
       toast(tags.length?ids.length+' tagged '+tags.join(', '):ids.length+' added');
       break;
     }
+    case 'inspo-select':
+      S.inspoSel=S.inspoSel?null:new Set(); render(); break;
+    case 'inspo-sel-tag':
+      if(S.inspoSel&&S.inspoSel.size) batchTagForm([...S.inspoSel]);
+      break;
+    case 'inspo-sel-del': {
+      if(!S.inspoSel||!S.inspoSel.size) break;
+      const n=S.inspoSel.size;
+      if(!confirm('Delete '+n+' image'+(n===1?'':'s')+'?')) break;
+      for(const rid of S.inspoSel){
+        const rec=S.inspo.find(x=>x.id===rid);
+        if(rec) await deleteInspoItem(rec);
+      }
+      S.inspoSel=null; render(); toast(n+' deleted'); break;
+    }
     case 'inspo-open':
       if(window.__dragLock) break; /* tail end of a long-press isn't an open */
+      if(S.inspoSel){
+        const it=inspoFiltered()[+el.dataset.i];
+        if(it){ S.inspoSel.has(it.id)?S.inspoSel.delete(it.id):S.inspoSel.add(it.id); render(); }
+        break;
+      }
       S.lightbox={items:inspoFiltered(),i:+el.dataset.i}; renderLightbox(); break;
     case 'lb-close': S.lightbox=null; renderLightbox(); break;
     case 'lb-prev': lbStep(-1); break;
@@ -1838,6 +1891,7 @@ document.getElementById('modal').addEventListener('click',e=>{
 /* long-press an inspo tile to delete it, like iOS */
 let lpTimer=null;
 document.addEventListener('touchstart',e=>{
+  if(S.inspoSel) return; /* select mode has its own delete */
   const cell=e.target.closest&&e.target.closest('[data-a="inspo-open"]');
   if(!cell) return;
   const item=inspoFiltered()[+cell.dataset.i];

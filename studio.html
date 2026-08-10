@@ -843,17 +843,22 @@ function attachLightboxGestures(d){
     img.style.transform=(z===1&&!ox&&!oy)?'':'translate('+ox+'px,'+oy+'px) scale('+z+')';
     d.classList.toggle('zoomed',z>1); /* edge-swipe close stands down while panning */
   };
+  /* single-finger at 1x direction-locks: horizontal = flip to prev/next photo
+     (with the image tracking the finger), vertical = pan inside the crop */
+  let nl=null,nsx=0,nsy=0,nlx=0,panY0=0,canSwipe=true;
   stage.addEventListener('touchstart',e=>{
     if(e.touches.length===2){
-      pinchD=dist(e.touches); pinchZ=z; drag=false; basePan=false;
+      pinchD=dist(e.touches); pinchZ=z; drag=false; basePan=false; nl='dead';
       img.style.transition='none'; e.preventDefault(); return;
     }
     if(e.touches.length!==1) return;
     const t=Date.now();
     if(t-lastTap<300){ z=z>1?1:2.5; ox=0; oy=0; apply(); lastTap=0; e.preventDefault(); return; }
     lastTap=t;
-    if(z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
-    else if(overflow()>2){ basePan=true; sy=e.touches[0].clientY-oy; img.style.transition='none'; }
+    if(z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return; }
+    nl=null; nsx=e.touches[0].clientX; nsy=e.touches[0].clientY; nlx=nsx;
+    canSwipe=nsx>34; /* the far left edge belongs to swipe-to-close */
+    panY0=e.touches[0].clientY-oy;
   },{passive:false});
   stage.addEventListener('touchmove',e=>{
     if(e.touches.length===2&&pinchD){
@@ -863,12 +868,29 @@ function attachLightboxGestures(d){
     }
     if(e.touches.length!==1) return;
     if(drag){ ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; apply(); e.preventDefault(); return; }
-    if(basePan){ oy=e.touches[0].clientY-sy; clampBase(); apply(); e.preventDefault(); }
+    const x=e.touches[0].clientX, y=e.touches[0].clientY;
+    if(nl===null){
+      const ax=Math.abs(x-nsx), ay=Math.abs(y-nsy);
+      if(ax<7&&ay<7) return;
+      if(ax>ay) nl=canSwipe?'h':'dead';
+      else nl=overflow()>2?'v':'dead';
+      if(nl!=='dead') img.style.transition='none';
+    }
+    nlx=x;
+    if(nl==='h'){ ox=x-nsx; apply(); e.preventDefault(); }
+    else if(nl==='v'){ oy=y-panY0; clampBase(); apply(); e.preventDefault(); }
   },{passive:false});
   stage.addEventListener('touchend',e=>{
     if(e.touches.length<2){ pinchD=0; img.style.transition=''; }
     if(e.touches.length===1&&z>1){ drag=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; return; }
     drag=false; basePan=false;
+    if(z===1&&nl==='h'){
+      const dx=nlx-nsx;
+      ox=0;
+      if(Math.abs(dx)>60&&S.lightbox&&S.lightbox.items.length>1){ nl=null; lbStep(dx<0?1:-1); return; }
+      apply(); /* not far enough — snap back */
+    }
+    nl=null;
     if(z<1.05&&z!==1){ z=1; ox=0; clampBase(); apply(); }
   });
   img.addEventListener('dblclick',()=>{ z=z>1?1:2.5; ox=0; oy=0; apply(); });

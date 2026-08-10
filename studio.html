@@ -786,7 +786,9 @@ function renderLightbox(){
     if(!document.body.contains(crop)) return;
     const topH=lbtopEl.offsetHeight, botH=lbbotEl.offsetHeight;
     const room=window.innerHeight-topH-botH-12;
-    crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.5,room))+'px';
+    /* cap at 4:5 and at 85% of the room — a taller cap eats all the space
+       between the bars on a phone and the centering becomes invisible */
+    crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.25,room*.85))+'px';
     /* stage spans the full viewport; place the crop below the bar, centered in
        the space between the bars — measured pixels only, no CSS viewport math */
     crop.style.marginTop=(topH+6+Math.max(0,(room-crop.offsetHeight)/2))+'px';

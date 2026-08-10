@@ -232,6 +232,9 @@ input[type=color].in{padding:5px;height:var(--tap)}
 .sugg .chip,.combobar .chip{min-height:40px;padding:10px 15px;font-size:14px;
   background:var(--bg3);border:1px solid var(--line);color:var(--fg);font-weight:550}
 .lyr .sugg .chip{background:var(--bg2)}
+/* pressed state must out-rank the base rule above, or toggles look dead */
+.sugg .chip[aria-pressed="true"],.combobar .chip[aria-pressed="true"]{
+  background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:650}
 .lyr .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
 .lyr .top .n{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3);font-weight:700;flex:1}
 .orderhint{font-size:12.5px;color:var(--fg3);margin:-2px 0 10px}

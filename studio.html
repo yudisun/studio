@@ -1892,6 +1892,56 @@ document.addEventListener('change',e=>{ if(e.target.dataset&&e.target.dataset.l)
 document.getElementById('modal').addEventListener('click',e=>{
   if(e.target.id==='modal'){ draft=null; closeSheet(); }
 });
+/* drag across tiles in select mode to select a run of them, like Apple Photos.
+   The first tile decides the verb (select vs deselect); horizontal lock claims
+   the gesture, vertical hands it back to the scroller. */
+let dsActive=false,dsLock=null,dsMode=true,dsX=0,dsY=0,dsTouched=null;
+function setCellSel(cell,on){
+  cell.classList.toggle('sel',on);
+  const ck=cell.querySelector('.ck');
+  if(on&&!ck) cell.insertAdjacentHTML('beforeend','<span class="ck">&#10003;</span>');
+  if(!on&&ck) ck.remove();
+}
+document.addEventListener('touchstart',e=>{
+  dsActive=false; dsLock=null;
+  if(!S.inspoSel||e.touches.length!==1) return;
+  const cell=e.target.closest&&e.target.closest('[data-a="inspo-open"]');
+  if(!cell) return;
+  const it=inspoFiltered()[+cell.dataset.i]; if(!it) return;
+  dsX=e.touches[0].clientX; dsY=e.touches[0].clientY;
+  dsMode=!S.inspoSel.has(it.id);
+  dsTouched=new Set(); dsActive=true;
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(!dsActive) return;
+  const t=e.touches[0];
+  if(dsLock===null){
+    const dx=Math.abs(t.clientX-dsX), dy=Math.abs(t.clientY-dsY);
+    if(dx<8&&dy<8) return;
+    dsLock=dx>dy?'h':'v';
+    if(dsLock==='v'){ dsActive=false; return; }
+  }
+  e.preventDefault();
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  const cell=el&&el.closest&&el.closest('[data-a="inspo-open"]');
+  if(!cell) return;
+  const it=inspoFiltered()[+cell.dataset.i];
+  if(!it||dsTouched.has(it.id)) return;
+  dsTouched.add(it.id);
+  dsMode?S.inspoSel.add(it.id):S.inspoSel.delete(it.id);
+  setCellSel(cell,dsMode);
+  const sub=document.querySelector('.hdr .sub');
+  if(sub) sub.textContent=S.inspoSel.size+' selected';
+},{passive:false});
+document.addEventListener('touchend',()=>{
+  if(dsActive&&dsTouched&&dsTouched.size){
+    window.__dragLock=true;
+    setTimeout(()=>{ window.__dragLock=false; },350);
+    render();
+  }
+  dsActive=false; dsTouched=null; dsLock=null;
+},{passive:true});
+
 /* long-press an inspo tile to delete it, like iOS */
 let lpTimer=null;
 document.addEventListener('touchstart',e=>{

@@ -114,8 +114,10 @@ a{color:var(--accent)}
 .lbnote{width:100%;background:rgba(255,255,255,.13);border:0;border-radius:12px;
   padding:12px 14px;min-height:44px;color:#fff;font:inherit;font-size:14.5px}
 .lbnote::placeholder{color:rgba(255,255,255,.55)}
-.lbtagsin{margin-bottom:8px}
-.lbchips:not(:empty){margin-bottom:8px}
+.lbtags{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;align-items:center;scrollbar-width:none}
+.lbtags::-webkit-scrollbar{display:none}
+.lbtags .chip{flex:none;background:rgba(255,255,255,.14);border-color:transparent;color:#fff;min-height:38px}
+.lbtags .chip[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:650}
 .grid .cell{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .lbnav{position:absolute;top:0;bottom:0;width:34%;z-index:1}
 .lbnav.l{left:0}.lbnav.r{right:0}
@@ -704,18 +706,43 @@ async function addInspo(){
   const ids=await pickImages(true);
   if(!ids.length) return;
   const now=Date.now();
-  for(let k=0;k<ids.length;k++) await dbPut('inspo',{id:uid(),imageId:ids[k],tags:[],note:'',added:now-k});
+  const recIds=[];
+  for(let k=0;k<ids.length;k++){
+    const rid=uid(); recIds.push(rid);
+    await dbPut('inspo',{id:rid,imageId:ids[k],tags:[],note:'',added:now-k});
+  }
   await loadAll(); render();
-  toast(ids.length+' added');
+  batchTagForm(recIds);
+}
+/* one sheet to tag a whole import batch — skippable with Cancel */
+function batchTagForm(ids){
+  draft={batchIds:ids,batchTags:new Set()};
+  const chips=allTags().map(t=>
+    '<button type="button" class="chip" data-a="btag-toggle" data-t="'+esc(t)+'" aria-pressed="false">'+esc(t)+'</button>'
+  ).join('')||'<span style="color:var(--fg3);font-size:13.5px">No tags yet &mdash; type some below.</span>';
+  const b='<div class="orderhint" style="margin-top:0">Optional &mdash; applies to all '+ids.length+
+      ' photo'+(ids.length===1?'':'s')+' you just added. Tap to toggle.</div>'+
+    '<div class="combobar">'+chips+'</div>'+
+    fld('New tags (comma separated)',
+      '<input class="in" type="text" data-f="btagNew" data-nofocus autocapitalize="none" autocomplete="off" placeholder="glaze, handles">');
+  sheet('Tag these photos',b,'btag-save');
 }
 
 /* lightbox */
+/* every known tag as a toggle chip, this image's tags first + highlighted */
+function lbTagRow(it){
+  const mine=new Set(it.tags||[]);
+  const all=[...new Set([...allTags(),...mine])];
+  all.sort((a,b)=>((mine.has(b)?1:0)-(mine.has(a)?1:0))||a.localeCompare(b));
+  return all.map(t=>
+    '<button class="chip" data-a="lbtag" data-t="'+esc(t)+'" aria-pressed="'+mine.has(t)+'">'+esc(t)+'</button>'
+  ).join('')+'<button class="chip" data-a="lbtag-new">+ tag</button>';
+}
 function renderLightbox(){
   const old=document.querySelector('.lightbox'); if(old) old.remove();
   if(!S.lightbox) return;
   const {items,i}=S.lightbox;
   const it=items[i]; if(!it) { S.lightbox=null; return; }
-  const tagChips=ts=>(ts&&ts.length)?ts.map(t=>'<span class="tag" style="margin-right:5px">'+esc(t)+'</span>').join(''):'';
   const d=document.createElement('div'); d.className='lightbox';
   d.innerHTML=
     '<div class="lbtop">'+
@@ -730,39 +757,26 @@ function renderLightbox(){
       '<button class="lbnav r" data-a="lb-next" aria-label="Next"></button>'+
     '</div></div>'+
     '<div class="lbbot">'+
-      '<div class="lbchips">'+tagChips(it.tags)+'</div>'+
-      '<input class="lbnote lbtagsin" placeholder="Tags &mdash; comma separated"'+
-        ' value="'+esc((it.tags||[]).join(', '))+'" autocapitalize="none" autocomplete="off" hidden>'+
+      '<div class="lbtags">'+lbTagRow(it)+'</div>'+
       '<input class="lbnote lbnotein" placeholder="Add a note&hellip;" value="'+esc(it.note||'')+'">'+
     '</div>';
   document.body.appendChild(d);
-  /* note and tags save in place — no Edit sheet */
-  const notein=d.querySelector('.lbnotein'), tagsin=d.querySelector('.lbtagsin');
-  const liveRec=()=>{
-    const rec=S.lightbox&&S.lightbox.items[S.lightbox.i];
-    return rec?{rec,prev:S.inspo.find(x=>x.id===rec.id)}:null;
-  };
+  /* the note saves in place; tags toggle via the chip row */
+  const notein=d.querySelector('.lbnotein');
   notein.addEventListener('change',async e=>{
-    const r=liveRec(); if(!r||!r.prev) return;
-    await dbPut('inspo',Object.assign({},r.prev,{note:e.target.value}));
-    r.rec.note=e.target.value; await loadAll();
+    const rec=S.lightbox&&S.lightbox.items[S.lightbox.i]; if(!rec) return;
+    const prev=S.inspo.find(x=>x.id===rec.id); if(!prev) return;
+    await dbPut('inspo',Object.assign({},prev,{note:e.target.value}));
+    rec.note=e.target.value; await loadAll();
   });
-  tagsin.addEventListener('change',async e=>{
-    const r=liveRec(); if(!r||!r.prev) return;
-    const tags=String(e.target.value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
-    await dbPut('inspo',Object.assign({},r.prev,{tags}));
-    r.rec.tags=tags; await loadAll();
-    d.querySelector('.lbchips').innerHTML=tagChips(tags);
-  });
-  /* tapping into the note reveals the tags field; the panel goes opaque while typing */
+  /* the panel goes opaque while typing in any of its fields */
   d.addEventListener('focusin',e=>{
-    if(e.target===notein||e.target===tagsin){ tagsin.hidden=false; d.classList.add('editing'); }
+    if(e.target.tagName==='INPUT'&&e.target.closest('.lbbot')) d.classList.add('editing');
   });
   d.addEventListener('focusout',()=>{
     setTimeout(()=>{
-      if(document.activeElement!==notein&&document.activeElement!==tagsin){
-        tagsin.hidden=true; d.classList.remove('editing');
-      }
+      const a=document.activeElement;
+      if(!(a&&a.closest&&a.closest('.lbbot'))) d.classList.remove('editing');
     },120);
   });
   /* size the crop window in JS — the CSS min()/env() chain silently fails on iOS,
@@ -1266,7 +1280,8 @@ function sheet(title,bodyHTML,saveAction){
     '</div><div class="sb">'+bodyHTML+'</div></div>';
   hydrate(document.getElementById('modal'));
   const first=document.querySelector('#modal .in');
-  if(first&&first.tagName==='INPUT'&&first.type==='text') setTimeout(()=>first.focus(),120);
+  if(first&&first.tagName==='INPUT'&&first.type==='text'&&!first.hasAttribute('data-nofocus'))
+    setTimeout(()=>first.focus(),120);
 }
 function fld(label,inner){ return '<label class="f"><span>'+label+'</span>'+inner+'</label>'; }
 function txt(k,v,ph){ return '<input class="in" type="text" data-f="'+k+'" value="'+esc(v||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'; }
@@ -1597,12 +1612,68 @@ document.addEventListener('click',async ev=>{
     /* inspo */
     case 'inspo-add': await addInspo(); break;
     case 'inspo-tag': S.inspoTag=el.dataset.t; render(); break;
+    case 'btag-toggle': {
+      const t=el.dataset.t;
+      draft.batchTags.has(t)?draft.batchTags.delete(t):draft.batchTags.add(t);
+      el.setAttribute('aria-pressed',draft.batchTags.has(t));
+      break;
+    }
+    case 'btag-save': {
+      const v=readForm(document.getElementById('modal'));
+      const typed=String(v.btagNew||'').split(',').map(t=>nameKey(t)).filter(Boolean);
+      const tags=[...new Set([...draft.batchTags,...typed])];
+      const ids=draft.batchIds;
+      if(tags.length){
+        for(const rid of ids){
+          const prev=S.inspo.find(x=>x.id===rid);
+          if(prev) await dbPut('inspo',Object.assign({},prev,{tags:[...new Set([...(prev.tags||[]),...tags])]}));
+        }
+        await loadAll();
+      }
+      draft=null; closeSheet(); render();
+      toast(tags.length?ids.length+' tagged '+tags.join(', '):ids.length+' added');
+      break;
+    }
     case 'inspo-open':
       if(window.__dragLock) break; /* tail end of a long-press isn't an open */
       S.lightbox={items:inspoFiltered(),i:+el.dataset.i}; renderLightbox(); break;
     case 'lb-close': S.lightbox=null; renderLightbox(); break;
     case 'lb-prev': lbStep(-1); break;
     case 'lb-next': lbStep(1); break;
+    case 'lbtag': {
+      const it=S.lightbox&&S.lightbox.items[S.lightbox.i]; if(!it) break;
+      const prev=S.inspo.find(x=>x.id===it.id); if(!prev) break;
+      const set=new Set(prev.tags||[]);
+      set.has(el.dataset.t)?set.delete(el.dataset.t):set.add(el.dataset.t);
+      const tags=[...set];
+      await dbPut('inspo',Object.assign({},prev,{tags}));
+      it.tags=tags; await loadAll();
+      const row=document.querySelector('.lightbox .lbtags');
+      if(row) row.innerHTML=lbTagRow(it);
+      break;
+    }
+    case 'lbtag-new': {
+      const row=document.querySelector('.lightbox .lbtags'); if(!row) break;
+      el.outerHTML='<input class="lbnote lbtag-in" placeholder="new tag" autocapitalize="none"'+
+        ' autocomplete="off" style="flex:none;width:130px;min-height:38px;padding:8px 12px">';
+      const inp=row.querySelector('.lbtag-in');
+      inp.focus();
+      inp.addEventListener('keydown',ke=>{ if(ke.key==='Enter') inp.blur(); });
+      inp.addEventListener('change',async ()=>{
+        const t=nameKey(inp.value);
+        const it=S.lightbox&&S.lightbox.items[S.lightbox.i];
+        if(t&&it){
+          const prev=S.inspo.find(x=>x.id===it.id);
+          if(prev){
+            const tags=[...new Set([...(prev.tags||[]),t])];
+            await dbPut('inspo',Object.assign({},prev,{tags}));
+            it.tags=tags; await loadAll();
+          }
+        }
+        if(it&&row.isConnected) row.innerHTML=lbTagRow(it);
+      });
+      break;
+    }
     case 'lb-menu': {
       const lm=document.querySelector('.lbmenu');
       if(lm) lm.hidden=!lm.hidden;

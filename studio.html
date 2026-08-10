@@ -99,11 +99,11 @@ a{color:var(--accent)}
   box-shadow:0 8px 30px rgba(0,0,0,.5)}
 .lbmenu button{display:block;width:100%;text-align:left;padding:15px 18px;
   color:#ffb3a6;font-size:15px;font-weight:600;min-height:var(--tap)}
-/* images render full-width in a crop window under the bar (~2:3 max, like a feed
-   crop); taller ones are cropped and pan vertically inside. Notes always sit on
-   solid black below the crop instead of overlaying the photo. */
-.lightbox .lbstage{position:absolute;inset:0;overflow:hidden;
-  padding-top:calc(var(--safe-t) + 74px)}
+/* images render full-width in a crop window (~2:3 max, like a feed crop); taller
+   ones are cropped and pan vertically inside. Notes always sit on solid black
+   below the crop. ALL vertical positioning happens in fit() from measured pixels
+   — CSS env()/calc() viewport math has burned us twice on iOS. */
+.lightbox .lbstage{position:absolute;inset:0;overflow:hidden}
 .lightbox .crop{position:relative;width:100%;overflow:hidden;touch-action:none;
   max-height:min(calc(100vw*1.5), calc(100vh - var(--safe-t) - var(--safe-b) - 254px))}
 .lightbox .crop img{width:100%;height:auto;display:block;
@@ -770,10 +770,12 @@ function renderLightbox(){
   const crop=d.querySelector('.crop'), lbtopEl=d.querySelector('.lbtop'), lbbotEl=d.querySelector('.lbbot');
   const fit=()=>{
     if(!document.body.contains(crop)) return;
-    const room=window.innerHeight-lbtopEl.offsetHeight-lbbotEl.offsetHeight-12;
+    const topH=lbtopEl.offsetHeight, botH=lbbotEl.offsetHeight;
+    const room=window.innerHeight-topH-botH-12;
     crop.style.maxHeight=Math.max(160,Math.min(window.innerWidth*1.5,room))+'px';
-    /* center the crop in the space between the bars */
-    crop.style.marginTop=Math.max(0,(room-crop.offsetHeight)/2)+'px';
+    /* stage spans the full viewport; place the crop below the bar, centered in
+       the space between the bars — measured pixels only, no CSS viewport math */
+    crop.style.marginTop=(topH+6+Math.max(0,(room-crop.offsetHeight)/2))+'px';
   };
   if(window.__lbFit) window.removeEventListener('resize',window.__lbFit);
   window.__lbFit=fit;

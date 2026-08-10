@@ -479,7 +479,8 @@ const S={
 async function loadAll(){
   const [m,c,p,i]=await Promise.all([dbAll('materials'),dbAll('clays'),dbAll('pieces'),dbAll('inspo')]);
   S.materials=m.sort(byName); S.clays=c.sort(byName);
-  S.pieces=p.sort((a,b)=>(b.updated||0)-(a.updated||0));
+  /* newest first by the piece's date (photo capture, else when added) */
+  S.pieces=p.sort((a,b)=>(pieceDate(b)||0)-(pieceDate(a)||0));
   S.inspo=i.sort((a,b)=>(b.added||0)-(a.added||0));
 }
 const byName=(a,b)=>(a.name||'').localeCompare(b.name||'');

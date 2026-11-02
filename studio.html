@@ -1223,7 +1223,7 @@ function viewBackup(){
     '</dl></div>'+
     '<div class="sect">Export</div>'+
     '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
-      'Saves everything, photos included, as one file. Do this every few weeks &mdash; iOS can clear a home-screen app\'s storage if you go a long time without opening it.</div>'+
+      'Saves everything, photos included, as one file. Keep a copy in Files or iCloud Drive. Export regularly and before removing the app or changing devices.</div>'+
     '<button class="btn" data-a="export">Export backup file</button>'+
     '<div class="sect">Import</div>'+
     '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
@@ -1275,10 +1275,18 @@ async function doExport(){
   const out={app:'studio',version:1,exported:new Date().toISOString(),records:{},images:[]};
   for(const s of StudioStorage.RECORDS) out.records[s]=saved[s];
   for(const im of saved.images) out.images.push({id:im.id,w:im.w,h:im.h,taken:im.taken||null,data:await b64(im.blob)});
-  const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+  const text=JSON.stringify(out);
+  const filename='studio-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  if(window.StudioNative?.isNative){
+    const result=await window.StudioNative.exportBackup(text,filename);
+    toast(result==='cancelled'?'Export cancelled — your collection is unchanged.':
+      'Backup shared. Keep the exported file somewhere safe.');
+    return;
+  }
+  const blob=new Blob([text],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='studio-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.download=filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),60000);
   toast('Backup prepared — finish saving it in your browser or Files.');

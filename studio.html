@@ -241,6 +241,8 @@ input[type=color].in{padding:5px;height:var(--tap)}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(96px + var(--safe-b));z-index:90;
   background:var(--fg);color:var(--bg);padding:13px 16px;border-radius:12px;font-size:14.5px;
   font-weight:600;text-align:center;animation:up .2s}
+.storage-error{z-index:120;text-align:left;max-height:50vh;overflow:auto}
+.storage-error button{display:block;color:inherit;text-decoration:underline;margin-top:8px;min-height:44px}
 </style>
 </head>
 <body>
@@ -250,6 +252,7 @@ input[type=color].in{padding:5px;height:var(--tap)}
 <input type="file" id="filepick" accept="image/*" multiple hidden>
 <input type="file" id="jsonpick" accept="application/json,.json" hidden>
 
+<script src="storage.js"></script>
 <script>
 "use strict";
 
@@ -269,7 +272,7 @@ const stageOf = s => STAGE_ALIAS[s] || s || 'Thrown';
    storage
    ================================================================== */
 const DB_NAME='studio', DB_VER=1;
-const STORES=['materials','clays','pieces','inspo','images'];
+const STORES=StudioStorage.STORES;
 let db=null;
 
 function openDB(){
@@ -285,16 +288,43 @@ function openDB(){
 }
 function os(store,mode){ return db.transaction(store,mode).objectStore(store); }
 function idbReq(req){ return new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
-const dbPut   = (s,v)=>idbReq(os(s,'readwrite').put(v)).then(()=>v);
+const dbPut   = (s,v)=>StudioStorage.put(db,s,v);
 const dbGet   = (s,id)=>idbReq(os(s,'readonly').get(id));
 const dbAll   = s=>idbReq(os(s,'readonly').getAll());
-const dbDel   = (s,id)=>idbReq(os(s,'readwrite').delete(id));
-const dbClear = s=>idbReq(os(s,'readwrite').clear());
+async function changeRecords(changes){
+  const removed=await StudioStorage.changeRecords(db,changes);
+  removed.forEach(releaseImageUrl);
+}
+const deleteRecord=(store,id)=>changeRecords([{store,id}]);
+const saveRecord=(store,record)=>changeRecords([{store,id:record.id,record}]);
+
+function showOperationError(error,message){
+  console.error(error);
+  document.querySelectorAll('.toast').forEach(el=>el.remove());
+  const box=document.createElement('div'); box.className='toast storage-error';
+  box.setAttribute('role','alert');
+  const text=document.createElement('div');
+  text.textContent=message||(error&&error.name==='QuotaExceededError'
+    ?'Your device could not save this change because storage is full. Free some space, then try again.'
+    :'Could not finish this change. Your latest edits may not be saved. Please try again before closing the app.');
+  const dismiss=document.createElement('button'); dismiss.textContent='Dismiss';
+  dismiss.addEventListener('click',()=>box.remove());
+  box.append(text,dismiss); document.body.appendChild(box);
+}
+/* Includes saves from gestures and inline fields, not just Save buttons. */
+window.addEventListener('unhandledrejection',event=>{
+  event.preventDefault(); showOperationError(event.reason);
+});
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 /* ---------- images ---------- */
 const urlCache=new Map();
+function releaseImageUrl(id){
+  const url=urlCache.get(id); if(url) URL.revokeObjectURL(url);
+  urlCache.delete(id);
+}
+function clearImageUrls(){ [...urlCache.keys()].forEach(releaseImageUrl); }
 async function imgUrl(id){
   if(!id) return null;
   if(urlCache.has(id)) return urlCache.get(id);
@@ -424,6 +454,9 @@ async function storeImageFile(file){
   const c=document.createElement('canvas'); c.width=cw; c.height=ch;
   c.getContext('2d').drawImage(src,0,0,cw,ch);
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+  if(src.close) src.close();
+  else if(src.src&&src.src.startsWith('blob:')) URL.revokeObjectURL(src.src);
+  if(!blob) throw new Error('Could not prepare this photo');
   const id=uid();
   await dbPut('images',{id,blob,w:cw,h:ch,taken:taken||null});
   importTaken[id]=taken||null;
@@ -451,16 +484,24 @@ document.getElementById('filepick').addEventListener('change',async e=>{
   if(!r) return;
   if(!files.length){ r([]); return; }
   toast('Adding '+files.length+' photo'+(files.length>1?'s':'')+'…');
-  const ids=[]; const failed=[];
+  const ids=[]; const failed=[]; let storageError=null;
   for(const f of files){
     try{ ids.push(await storeImageFile(f)); }
-    catch(err){ failed.push(f.name); console.error('Could not read '+f.name+' ('+f.type+')',err); }
+    catch(err){
+      failed.push(f.name); console.error('Could not import '+f.name+' ('+f.type+')',err);
+      if(err.name==='QuotaExceededError'){ storageError=err; break; }
+    }
   }
-  if(failed.length){
+  if(storageError){
+    showOperationError(storageError,'Storage is full. Added '+ids.length+' of '+files.length+' photos. Free some space, then add the remaining photos.');
+  }else if(failed.length){
     toast('Couldn’t read '+failed.length+' photo'+(failed.length>1?'s':'')+
       (ids.length?' — added '+ids.length:''));
   }
   r(ids);
+});
+document.getElementById('filepick').addEventListener('cancel',()=>{
+  const resolve=pickResolve; pickResolve=null; if(resolve) resolve([]);
 });
 
 /* ==================================================================
@@ -509,8 +550,10 @@ function fmtStamp(ms){
 /* a piece's date: earliest photo capture date, else when it was added */
 const pieceDate=p=>p.taken||p.created||p.updated||null;
 function toast(msg){
-  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  document.querySelectorAll('.toast:not(.storage-error)').forEach(t=>t.remove());
+  if(document.querySelector('.storage-error')) return;
   const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
+  d.setAttribute('role','status');
   document.body.appendChild(d);
   setTimeout(()=>d.remove(),2200);
 }
@@ -726,8 +769,7 @@ function inspoFiltered(){
   return S.inspo.filter(x=>S.inspoTag==='All'||(x.tags||[]).includes(S.inspoTag));
 }
 async function deleteInspoItem(it){
-  await dbDel('inspo',it.id);
-  if(it.imageId){ await dbDel('images',it.imageId); urlCache.delete(it.imageId); }
+  await deleteRecord('inspo',it.id);
   await loadAll();
 }
 async function addInspo(){
@@ -1185,7 +1227,7 @@ function viewBackup(){
     '<button class="btn" data-a="export">Export backup file</button>'+
     '<div class="sect">Import</div>'+
     '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
-      'Restores from a backup file. Records with the same id get overwritten; everything else is kept.</div>'+
+      'Checks the whole backup before restoring. Records with the same id get overwritten; everything else is kept. If the restore fails, your existing collection stays unchanged.</div>'+
     '<button class="btn sec" data-a="import">Choose backup file</button>'+
     '<div class="sect">Sample data</div>'+
     '<div style="color:var(--fg2);font-size:14px;line-height:1.55;margin-bottom:11px">'+
@@ -1195,38 +1237,77 @@ function viewBackup(){
     '<button class="btn dgr" data-a="wipe">Erase everything</button>'+
     '<div style="height:20px"></div></div>';
 }
-const b64=blob=>new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(blob); });
-function b64ToBlob(s,type){
-  const bin=atob(s), a=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
-  return new Blob([a],{type:type||'image/jpeg'});
+const b64=blob=>new Promise((res,rej)=>{
+  const r=new FileReader();
+  r.onload=()=>res(r.result.split(',')[1]);
+  r.onerror=()=>rej(r.error||new Error('Could not read a stored photo'));
+  r.onabort=()=>rej(new Error('Photo reading was cancelled'));
+  r.readAsDataURL(blob);
+});
+let backupBusy=false;
+function setBackupBusy(busy){
+  backupBusy=busy;
+  ['app','tabs','modal'].forEach(id=>{
+    const el=document.getElementById(id); el.inert=busy;
+    el.setAttribute('aria-busy',String(busy));
+  });
+}
+async function checkBackupPhotos(images){
+  for(const im of images){
+    const url=URL.createObjectURL(im.blob);
+    try{
+      await new Promise((resolve,reject)=>{
+        const photo=new Image();
+        photo.onload=()=>photo.naturalWidth===im.w&&photo.naturalHeight===im.h
+          ?resolve():reject(new Error('Photo dimensions do not match'));
+        photo.onerror=()=>reject(new Error('Could not decode a backup photo'));
+        photo.src=url;
+      });
+    }finally{ URL.revokeObjectURL(url); }
+  }
 }
 async function doExport(){
+  if(backupBusy) return;
+  setBackupBusy(true);
+  try{
   toast('Packing backup…');
+  const saved=await StudioStorage.snapshot(db);
   const out={app:'studio',version:1,exported:new Date().toISOString(),records:{},images:[]};
-  for(const s of ['materials','clays','pieces','inspo']) out.records[s]=await dbAll(s);
-  const imgs=await dbAll('images');
-  for(const im of imgs) out.images.push({id:im.id,w:im.w,h:im.h,data:await b64(im.blob)});
+  for(const s of StudioStorage.RECORDS) out.records[s]=saved[s];
+  for(const im of saved.images) out.images.push({id:im.id,w:im.w,h:im.h,taken:im.taken||null,data:await b64(im.blob)});
   const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='studio-backup-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); a.remove();
-  toast('Backup ready');
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  toast('Backup prepared — finish saving it in your browser or Files.');
+  }catch(error){
+    showOperationError(error,'Could not prepare the backup. Your collection is unchanged. Please try again.');
+  }finally{ setBackupBusy(false); }
 }
 document.getElementById('jsonpick').addEventListener('change',async e=>{
   const f=e.target.files[0]; e.target.value='';
-  if(!f) return;
+  if(!f||backupBusy) return;
+  setBackupBusy(true);
+  let committed=false;
   try{
+    toast('Checking backup…');
     const data=JSON.parse(await f.text());
-    if(!data||!data.records) throw new Error('not a studio backup');
-    toast('Importing…');
-    for(const s of ['materials','clays','pieces','inspo'])
-      for(const r of (data.records[s]||[])) await dbPut(s,r);
-    for(const im of (data.images||[])) await dbPut('images',{id:im.id,w:im.w,h:im.h,blob:b64ToBlob(im.data)});
-    urlCache.clear();
+    const prepared=StudioStorage.prepareBackup(data);
+    await checkBackupPhotos(prepared.images);
+    if(!confirm('Restore this backup? Matching records will be replaced; other records will be kept.')) return;
+    toast('Restoring backup…');
+    await StudioStorage.restore(db,prepared); committed=true;
+    clearImageUrls();
     await loadAll(); render(); toast('Imported');
-  }catch(err){ console.error(err); toast('Could not read that file'); }
+  }catch(err){
+    const detail=err.name==='BackupValidationError'?err.message:
+      err.name==='QuotaExceededError'?'There is not enough storage to restore this backup. Free some space and try again.':
+      'The file could not be restored. Check that it is a complete Studio backup and try again.';
+    showOperationError(err,committed?'Your backup was restored, but the screen could not refresh. Reopen the app.':
+      detail+' Your existing collection is unchanged.');
+  }finally{ setBackupBusy(false); }
 });
 
 /* ------------------------------------------------------------------
@@ -1325,7 +1406,7 @@ async function seed(){
     const imageId=await storeGeneratedImage(potDraw(s[0],s[1],s[2]),900,900);
     await dbPut('inspo',{id:uid(),imageId,tags:tagSets[i],note:i===0?'That foot ring. Almost no undercut.':'',added:now-i});
   }
-  urlCache.clear();
+  clearImageUrls();
   await loadAll(); render(); toast('Sample data loaded');
 }
 
@@ -1424,7 +1505,7 @@ async function matSave(){
   else Object.assign(rec,v);
   Object.assign(rec,{id,recipe:(merged&&!recipe.length)?(prev.recipe||[]):recipe,
     imageId:draft.imageId||prev.imageId||null,updated:Date.now()});
-  await dbPut('materials',rec);
+  await saveRecord('materials',rec);
   draft=null; closeSheet(); await loadAll(); render();
   toast(merged?'Merged into existing '+v.name:'Saved');
 }
@@ -1461,7 +1542,7 @@ async function claySave(){
   if(merged){ for(const k in v){ if(has(v[k])) rec[k]=v[k]; } }
   else Object.assign(rec,v);
   Object.assign(rec,{id,imageId:draft.imageId||prev.imageId||null,updated:Date.now()});
-  await dbPut('clays',rec);
+  await saveRecord('clays',rec);
   draft=null; closeSheet(); await loadAll(); render();
   toast(merged?'Merged into existing '+v.name:'Saved');
 }
@@ -1630,6 +1711,7 @@ async function pinDelete(){
    ================================================================== */
 document.addEventListener('click',async ev=>{
   const el=ev.target.closest('[data-a]'); if(!el) return;
+  if(backupBusy){ ev.preventDefault(); return; }
   const a=el.dataset.a, id=el.dataset.id;
 
   /* any tap outside the … button dismisses the lightbox menu */
@@ -1704,10 +1786,8 @@ document.addEventListener('click',async ev=>{
       if(!S.inspoSel||!S.inspoSel.size) break;
       const n=S.inspoSel.size;
       if(!confirm('Delete '+n+' image'+(n===1?'':'s')+'?')) break;
-      for(const rid of S.inspoSel){
-        const rec=S.inspo.find(x=>x.id===rid);
-        if(rec) await deleteInspoItem(rec);
-      }
+      await changeRecords([...S.inspoSel].map(id=>({store:'inspo',id})));
+      await loadAll();
       S.inspoSel=null; render(); toast(n+' deleted'); break;
     }
     case 'inspo-open':
@@ -1814,10 +1894,10 @@ document.addEventListener('click',async ev=>{
     }
     case 'mat-del':
       if(!confirm('Delete this material? Glaze marks that used it will show "unknown".')) break;
-      await dbDel('materials',id); await loadAll(); back(); toast('Deleted'); break;
+      await deleteRecord('materials',id); await loadAll(); back(); toast('Deleted'); break;
     case 'clay-del':
       if(!confirm('Delete this clay body?')) break;
-      await dbDel('clays',id); await loadAll(); back(); toast('Deleted'); break;
+      await deleteRecord('clays',id); await loadAll(); back(); toast('Deleted'); break;
 
     /* pieces */
     case 'piece-new': {
@@ -1837,7 +1917,7 @@ document.addEventListener('click',async ev=>{
     case 'piece-save': await pieceSave(); break;
     case 'piece-del':
       if(!confirm('Delete this piece and its marks?')) break;
-      await dbDel('pieces',id); await loadAll(); back(); toast('Deleted'); break;
+      await deleteRecord('pieces',id); await loadAll(); back(); toast('Deleted'); break;
     case 'photo-sel':
       if(window.__dragLock) break; /* tap at the end of a drag isn't a select */
       S.photoIdx=+el.dataset.i; S.activePin=null; render(); break;
@@ -1857,8 +1937,7 @@ document.addEventListener('click',async ev=>{
       if(!confirm('Remove this photo? Marks on it are removed too.')) break;
       photos.splice(photos.indexOf(gone),1);
       const pins=(p.pins||[]).filter(x=>x.photoId!==gone);
-      await dbPut('pieces',Object.assign({},p,{photos,pins,updated:Date.now()}));
-      await dbDel('images',gone); urlCache.delete(gone);
+      await saveRecord('pieces',Object.assign({},p,{photos,pins,updated:Date.now()}));
       S.photoIdx=0; await loadAll(); render(); break;
     }
     case 'combo-toggle': S.comboOpen=(S.comboOpen===+el.dataset.i?null:+el.dataset.i); render(); break;
@@ -1885,8 +1964,8 @@ document.addEventListener('click',async ev=>{
     case 'seed': await seed(); break;
     case 'wipe':
       if(!confirm('Erase all pieces, materials, and images? This cannot be undone.')) break;
-      for(const s of STORES) await dbClear(s);
-      urlCache.clear(); await loadAll(); render(); toast('Erased'); break;
+      await StudioStorage.clear(db);
+      clearImageUrls(); await loadAll(); render(); toast('Erased'); break;
   }
 });
 

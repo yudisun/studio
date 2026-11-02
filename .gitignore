@@ -1,3 +1,5 @@
 studio-backup*.json
 backup.json
 node_modules/
+dist/
+.DS_Store

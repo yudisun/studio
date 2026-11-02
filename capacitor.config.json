@@ -1,0 +1,10 @@
+{
+  "appId": "com.yudisun.studio",
+  "appName": "Studio",
+  "webDir": "dist",
+  "backgroundColor": "#f6efe6",
+  "ios": {
+    "contentInset": "never",
+    "preferredContentMode": "mobile"
+  }
+}
